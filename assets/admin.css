@@ -129,7 +129,58 @@
 	opacity: 0.9;
 }
 
+.iboh-preview-upcoming {
+	opacity: 0.9;
+}
+
+.iboh-preview-upcoming:empty,
+.iboh-preview-sub:empty {
+	display: none;
+}
+
+.iboh-preview-upcoming::before {
+	content: "·";
+	margin-right: 6px;
+	opacity: 0.6;
+}
+
+/* Muted treatment when the banner would be hidden on the front end. */
+.iboh-preview.iboh-preview-hidden {
+	background: var(--iboh-soft) !important;
+	color: var(--iboh-muted) !important;
+	border-style: dashed;
+	box-shadow: none;
+	font-style: italic;
+}
+
+.iboh-preview.iboh-preview-hidden .iboh-preview-main {
+	font-weight: 600;
+}
+
 /* ---- Weekly schedule editor ---- */
+.iboh-weekly-toggle {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	margin: 0 0 14px;
+	font-weight: 600;
+}
+
+.iboh-weekly-toggle .description {
+	font-weight: 400;
+}
+
+/* ---- "When to show special dates" radios ---- */
+.iboh-upcoming-mode {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 0 0 16px;
+	padding: 12px 14px;
+	background: var(--iboh-soft);
+	border: 1px solid #ddd;
+}
 .iboh-day-row {
 	display: grid;
 	grid-template-columns: 130px 110px 1fr;

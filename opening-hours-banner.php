@@ -3,7 +3,7 @@
  * Plugin Name:       Opening Hours by IT Boffins
  * Plugin URI:        https://itboffins.com/plugins/opening-hours-banner/
  * Description:       Show your opening hours and a live "We're open / Closed" banner that stays correct even with page caching. No external services, no account — works on any WordPress host.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            IT Boffins
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'IBOH_VERSION', '1.0.0' );
+define( 'IBOH_VERSION', '1.1.0' );
 define( 'IBOH_FILE', __FILE__ );
 define( 'IBOH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IBOH_URL', plugin_dir_url( __FILE__ ) );

@@ -4,7 +4,7 @@ Tags: opening hours, business hours, store hours, open closed, hours banner
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,6 +21,8 @@ Most "open/closed" plugins calculate the status on the server and bake it into t
 * **Caching‑safe.** Works with WP Rocket, W3 Total Cache, LiteSpeed, Cloudflare and any CDN. The status is computed client‑side, never frozen in cached HTML.
 * **Polished, no‑fuss editor.** Set hours per day with native time pickers. Add split hours (e.g. a lunch break) with one click. Copy Monday to all weekdays.
 * **Holidays & special dates.** Close for a public holiday or set special one‑off hours that override the weekly schedule.
+* **Upcoming dates, shown in advance.** Optionally announce every future special date — "Closed Wed 25 Dec (Christmas)" — in the banner and hours table, not just on the day itself. Past dates drop off automatically.
+* **Special‑dates‑only mode.** Turn the weekly schedule off entirely for pop‑ups, events or by‑appointment venues that only open on specific dates.
 * **Uses your WordPress timezone.** Correct across daylight saving — automatically.
 * **Overnight hours.** Late‑night venues are handled (e.g. 22:00 – 02:00).
 * **Live status banner.** Top or bottom of the page, your colours, optionally dismissible, with optional "Closes at …" / "Opens …" and "Opening/Closing soon" wording.
@@ -62,10 +64,19 @@ No. There is no external API and no tracking. Everything runs on your own site.
 
 == Changelog ==
 
+= 1.1.0 =
+* New: optionally show all upcoming special dates in advance — in the banner and the hours table — instead of only on the day itself. Past dates are hidden automatically.
+* New: make the weekly schedule optional ("special dates only" mode) for events, pop‑ups and by‑appointment venues. When weekly hours are off and there is nothing to show on a given day, the banner hides itself.
+* New: editable wording for the upcoming‑dates list, plus an "Open 24 hours" label.
+* All new behaviour is computed client‑side, so it stays correct under full‑page caching just like the live status.
+
 = 1.0.0 =
 * Initial release: weekly schedule editor, split hours, holidays/special dates, timezone‑aware caching‑safe status banner, hours table block + shortcode.
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Show upcoming special dates ahead of time, and optionally run in special‑dates‑only mode with no weekly hours. Existing settings are preserved.
 
 = 1.0.0 =
 First release.

@@ -87,6 +87,15 @@
 		schedulePreview();
 	}
 
+	/* ---- Weekly hours master toggle (show/hide all the day rows) --------- */
+
+	function toggleWeekly( checkbox ) {
+		var body = document.querySelector( '.iboh-weekly-body' );
+		if ( body ) {
+			body.style.display = checkbox.checked ? '' : 'none';
+		}
+	}
+
 	/* ---- Closed toggle (show/hide the hours body) ------------------------ */
 
 	function toggleClosed( checkbox ) {
@@ -132,11 +141,13 @@
 			tz: window.IBOH ? window.IBOH.tz : '',
 			offset: window.IBOH ? window.IBOH.offset : 0,
 			timeFormat: window.IBOH ? window.IBOH.timeFormat : 'H:i',
+			lang: window.IBOH ? window.IBOH.lang : '',
 			dayNames: window.IBOH ? window.IBOH.dayNames : [],
 			schedule: {},
 			holidays: {},
 			labels: {},
-			banner: {}
+			banner: {},
+			options: {}
 		};
 
 		document.querySelectorAll( '[data-iboh-day]' ).forEach( function ( row ) {
@@ -167,6 +178,19 @@
 			cfg.banner[ key ] = ( 'checkbox' === input.type ) ? ( input.checked ? 1 : 0 ) : input.value;
 		} );
 
+		document.querySelectorAll( '[data-iboh-option]' ).forEach( function ( input ) {
+			var key = input.getAttribute( 'data-iboh-option' );
+			if ( 'checkbox' === input.type ) {
+				cfg.options[ key ] = input.checked ? 1 : 0;
+			} else if ( 'radio' === input.type ) {
+				if ( input.checked ) {
+					cfg.options[ key ] = input.value;
+				}
+			} else {
+				cfg.options[ key ] = input.value;
+			}
+		} );
+
 		return cfg;
 	}
 
@@ -188,14 +212,29 @@
 		}
 		var cfg = buildConfig();
 		var s = window.IBOHEval.buildStatus( cfg, window.IBOHEval.siteNow( cfg ) );
+		var main = box.querySelector( '[data-iboh-main]' );
+		var sub = box.querySelector( '[data-iboh-sub]' );
+		var up = box.querySelector( '[data-iboh-upcoming]' );
+
+		if ( ! s.show ) {
+			box.classList.remove( 'iboh-open' );
+			box.classList.add( 'iboh-closed', 'iboh-preview-hidden' );
+			box.style.background = '';
+			box.style.color = '';
+			if ( main ) { main.textContent = i18n.hidden || '—'; }
+			if ( sub ) { sub.textContent = ''; }
+			if ( up ) { up.textContent = ''; }
+			return;
+		}
+
+		box.classList.remove( 'iboh-preview-hidden' );
 		box.classList.toggle( 'iboh-open', s.open );
 		box.classList.toggle( 'iboh-closed', ! s.open );
 		box.style.background = s.open ? cfg.banner.colour_open : cfg.banner.colour_closed;
 		box.style.color = cfg.banner.colour_text;
-		var main = box.querySelector( '[data-iboh-main]' );
-		var sub = box.querySelector( '[data-iboh-sub]' );
 		if ( main ) { main.textContent = s.main; }
 		if ( sub ) { sub.textContent = s.sub; }
+		if ( up ) { up.textContent = s.upcoming || ''; }
 	}
 
 	/* ---- Wiring ---------------------------------------------------------- */
@@ -229,6 +268,8 @@
 		document.addEventListener( 'change', function ( e ) {
 			if ( e.target.classList.contains( 'iboh-closed-toggle' ) ) {
 				toggleClosed( e.target );
+			} else if ( 'iboh-weekly-enabled' === e.target.id ) {
+				toggleWeekly( e.target );
 			}
 			schedulePreview();
 		} );

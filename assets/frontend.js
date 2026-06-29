@@ -75,15 +75,47 @@
 		};
 	}
 
-	/* Effective plan for a date, holiday override winning. */
+	function weeklyEnabled( cfg ) {
+		var o = cfg.options || {};
+		return ( o.weekly_enabled === undefined ) ? true : !! ( +o.weekly_enabled );
+	}
+
+	/* Effective plan for a date, holiday override winning. The 'defined' flag is
+	 * false when weekly hours are off and the date has no special override —
+	 * meaning the day has no status to show, as distinct from being "closed". */
 	function dayPlan( cfg, ymd, dow ) {
 		if ( cfg.holidays && cfg.holidays[ ymd ] ) {
 			var h = cfg.holidays[ ymd ];
 			var closed = !! ( +h.closed );
-			return { closed: closed, ranges: closed ? [] : ( h.ranges || [] ) };
+			return { closed: closed, ranges: closed ? [] : ( h.ranges || [] ), defined: true };
+		}
+		if ( ! weeklyEnabled( cfg ) ) {
+			return { closed: true, ranges: [], defined: false };
 		}
 		var d = ( cfg.schedule && ( cfg.schedule[ String( dow ) ] || cfg.schedule[ dow ] ) ) || { closed: 1, ranges: [] };
-		return { closed: !! ( +d.closed ), ranges: d.ranges || [] };
+		return { closed: !! ( +d.closed ), ranges: d.ranges || [], defined: true };
+	}
+
+	/* Soonest special date strictly after today, or null. */
+	function nextUpcoming( cfg, todayYmd ) {
+		if ( ! cfg.holidays ) {
+			return null;
+		}
+		var dates = Object.keys( cfg.holidays ).sort();
+		for ( var i = 0; i < dates.length; i++ ) {
+			if ( dates[ i ] <= todayYmd ) {
+				continue;
+			}
+			var h = cfg.holidays[ dates[ i ] ];
+			var closed = !! ( +h.closed );
+			return {
+				date: dates[ i ],
+				closed: closed,
+				ranges: closed ? [] : ( h.ranges || [] ),
+				label: h.label || ''
+			};
+		}
+		return null;
 	}
 
 	function evaluate( cfg, t ) {
@@ -171,6 +203,48 @@
 		return pad( h ) + ':' + pad( m );
 	}
 
+	/* Short, localised date for an 'YYYY-MM-DD' string, e.g. "Wed 25 Dec". */
+	function fmtDate( cfg, ymd ) {
+		var a = ymd.split( '-' );
+		var dt = new Date( Date.UTC( +a[ 0 ], ( +a[ 1 ] ) - 1, +a[ 2 ] ) );
+		try {
+			return new Intl.DateTimeFormat( cfg.lang || undefined, {
+				weekday: 'short',
+				day: 'numeric',
+				month: 'short',
+				timeZone: 'UTC'
+			} ).format( dt );
+		} catch ( e ) {
+			return ymd;
+		}
+	}
+
+	/* Display text for a list of ranges, mirroring the server table. */
+	function fmtRanges( cfg, ranges ) {
+		var L = cfg.labels || {};
+		if ( ! ranges || ! ranges.length ) {
+			return '';
+		}
+		if ( 1 === ranges.length && '00:00' === ranges[ 0 ].open && '24:00' === ranges[ 0 ].close ) {
+			return L.open_24h || 'Open 24 hours';
+		}
+		return ranges.map( function ( r ) {
+			var close = ( '24:00' === r.close ) ? 1439 : toMin( r.close );
+			return fmtTime( cfg, toMin( r.open ) ) + ' – ' + fmtTime( cfg, close );
+		} ).join( ', ' );
+	}
+
+	/* One-line note for an upcoming special date. */
+	function formatEvent( cfg, ev ) {
+		var L = cfg.labels || {};
+		var dateText = fmtDate( cfg, ev.date );
+		var dateLabel = ev.label ? ( dateText + ' (' + ev.label + ')' ) : dateText;
+		if ( ev.closed || ! ev.ranges || ! ev.ranges.length ) {
+			return sprintf( L.upcoming_closed || '', [ dateLabel ] );
+		}
+		return sprintf( L.upcoming_hours || '', [ dateLabel, fmtRanges( cfg, ev.ranges ) ] );
+	}
+
 	function sprintf( tpl, args ) {
 		if ( ! tpl ) {
 			return '';
@@ -185,13 +259,19 @@
 			} );
 	}
 
-	/* Build { open, main, sub } status text from the evaluation. */
+	/* Build { show, open, main, sub, upcoming } status text from the evaluation. */
 	function buildStatus( cfg, t ) {
 		var ev = evaluate( cfg, t );
 		var L = cfg.labels || {};
 		var B = cfg.banner || {};
+		var O = cfg.options || {};
 		var soon = ( +B.soon_mins ) || 0;
 		var show = !! ( +B.show_next );
+		var weekly = weeklyEnabled( cfg );
+		var showUpcoming = !! ( +O.show_upcoming ) || ! weekly;
+		var todayDefined = dayPlan( cfg, t.ymd, t.dow ).defined;
+		var upcoming = showUpcoming ? nextUpcoming( cfg, t.ymd ) : null;
+		var upText = upcoming ? formatEvent( cfg, upcoming ) : '';
 
 		if ( ev.open ) {
 			var main = L.open || '';
@@ -204,25 +284,39 @@
 					main = L.closing_soon || main;
 				}
 			}
-			return { open: true, main: main, sub: sub };
+			return { show: true, open: true, main: main, sub: sub, upcoming: upText };
 		}
 
-		var cmain = L.closed || '';
-		var csub = '';
-		if ( ev.nextOpen ) {
-			var time = fmtTime( cfg, ev.nextOpen.minute );
-			if ( show ) {
-				if ( 0 === ev.nextOpen.dayOffset ) {
-					csub = sprintf( L.opens_today || '', [ time ] );
-				} else {
-					csub = sprintf( L.opens_on || '', [ dayName( cfg, ev.nextOpen.dow ), time ] );
+		if ( todayDefined ) {
+			var cmain = L.closed || '';
+			var csub = '';
+			if ( ev.nextOpen ) {
+				var time = fmtTime( cfg, ev.nextOpen.minute );
+				if ( show ) {
+					if ( 0 === ev.nextOpen.dayOffset ) {
+						csub = sprintf( L.opens_today || '', [ time ] );
+					} else {
+						csub = sprintf( L.opens_on || '', [ dayName( cfg, ev.nextOpen.dow ), time ] );
+					}
+				}
+				if ( soon > 0 && 0 === ev.nextOpen.dayOffset && ( ev.nextOpen.minute - t.minutes ) <= soon ) {
+					cmain = L.opening_soon || cmain;
 				}
 			}
-			if ( soon > 0 && 0 === ev.nextOpen.dayOffset && ( ev.nextOpen.minute - t.minutes ) <= soon ) {
-				cmain = L.opening_soon || cmain;
-			}
+			return { show: true, open: false, main: cmain, sub: csub, upcoming: upText };
 		}
-		return { open: false, main: cmain, sub: csub };
+
+		// Weekly off, nothing today: announce the next date, or hide entirely.
+		if ( upcoming ) {
+			return {
+				show: true,
+				open: ( ! upcoming.closed && upcoming.ranges.length > 0 ),
+				main: upText,
+				sub: '',
+				upcoming: ''
+			};
+		}
+		return { show: false, open: false, main: '', sub: '', upcoming: '' };
 	}
 
 	function dayName( cfg, dow ) {
@@ -240,6 +334,11 @@
 
 	function applyBanner( el, cfg ) {
 		var s = buildStatus( cfg, siteNow( cfg ) );
+		if ( ! s.show ) {
+			el.style.display = 'none';
+			return;
+		}
+		el.style.display = '';
 		el.classList.toggle( 'iboh-open', s.open );
 		el.classList.toggle( 'iboh-closed', ! s.open );
 		var B = cfg.banner || {};
@@ -247,14 +346,17 @@
 		el.style.color = B.colour_text;
 		setText( el, '[data-iboh-main]', s.main );
 		setText( el, '[data-iboh-sub]', s.sub );
+		setText( el, '[data-iboh-upcoming]', s.upcoming || '' );
 	}
 
 	function applyStatus( el, cfg ) {
 		var s = buildStatus( cfg, siteNow( cfg ) );
+		el.style.display = s.show ? '' : 'none';
 		el.classList.toggle( 'iboh-open', s.open );
 		el.classList.toggle( 'iboh-closed', ! s.open );
 		setText( el, '[data-iboh-main]', s.main );
 		setText( el, '[data-iboh-sub]', s.sub );
+		setText( el, '[data-iboh-upcoming]', s.upcoming || '' );
 	}
 
 	function applyTable( el, cfg ) {
@@ -263,6 +365,22 @@
 		Array.prototype.forEach.call( rows, function ( row ) {
 			row.classList.toggle( 'iboh-today', String( t.dow ) === row.getAttribute( 'data-iboh-dow' ) );
 		} );
+	}
+
+	/* Hide special-date rows that have since passed; hide the whole list if all
+	 * have. Keeps a cached "Upcoming dates" list from showing stale entries. */
+	function applyUpcoming( el, cfg ) {
+		var t = siteNow( cfg );
+		var rows = el.querySelectorAll( '[data-iboh-date]' );
+		var anyVisible = false;
+		Array.prototype.forEach.call( rows, function ( row ) {
+			var past = row.getAttribute( 'data-iboh-date' ) < t.ymd;
+			row.style.display = past ? 'none' : '';
+			if ( ! past ) {
+				anyVisible = true;
+			}
+		} );
+		el.style.display = anyVisible ? '' : 'none';
 	}
 
 	function handleDismiss( cfg ) {
@@ -292,6 +410,7 @@
 		var banners = document.querySelectorAll( '[data-iboh-banner]' );
 		var statuses = document.querySelectorAll( '[data-iboh-status]' );
 		var tables = document.querySelectorAll( '[data-iboh-table]' );
+		var upcomings = document.querySelectorAll( '[data-iboh-upcoming-list]' );
 
 		// Honour a prior dismissal (kept in localStorage, never in cached HTML).
 		Array.prototype.forEach.call( banners, function ( b ) {
@@ -315,6 +434,7 @@
 			} );
 			Array.prototype.forEach.call( statuses, function ( s ) { applyStatus( s, cfg ); } );
 			Array.prototype.forEach.call( tables, function ( t ) { applyTable( t, cfg ); } );
+			Array.prototype.forEach.call( upcomings, function ( u ) { applyUpcoming( u, cfg ); } );
 		}
 
 		tick();

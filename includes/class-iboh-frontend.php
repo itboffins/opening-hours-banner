@@ -79,23 +79,31 @@ class IBOH_Frontend {
 		$state_class = $state['open'] ? 'iboh-open' : 'iboh-closed';
 		$bg    = $state['open'] ? $banner['colour_open'] : $banner['colour_closed'];
 
+		// The element is always emitted (hidden when there is nothing to show)
+		// so a cached page can still reveal a later upcoming-date announcement
+		// once the browser recomputes the live state.
+		$style = sprintf( 'background:%s;color:%s;', $bg, $banner['colour_text'] );
+		if ( empty( $state['show'] ) ) {
+			$style .= 'display:none;';
+		}
+
 		// A signature so a dismissed banner re-appears when the message changes.
 		$sig = substr( md5( wp_json_encode( array( $banner, IBOH_Settings::get( 'labels' ) ) ) ), 0, 8 );
 
 		printf(
-			'<div class="iboh-banner iboh-pos-%1$s %2$s" data-iboh-banner data-iboh-dismissible="%3$s" data-iboh-sig="%4$s" style="background:%5$s;color:%6$s;">',
+			'<div class="iboh-banner iboh-pos-%1$s %2$s" data-iboh-banner data-iboh-dismissible="%3$s" data-iboh-sig="%4$s" style="%5$s">',
 			esc_attr( $pos ),
 			esc_attr( $state_class ),
 			esc_attr( empty( $banner['dismissible'] ) ? '0' : '1' ),
 			esc_attr( $sig ),
-			esc_attr( $bg ),
-			esc_attr( $banner['colour_text'] )
+			esc_attr( $style )
 		);
 
 		echo '<div class="iboh-banner-inner">';
 		echo '<span class="iboh-dot" aria-hidden="true"></span>';
 		echo '<span class="iboh-banner-main" data-iboh-main>' . esc_html( $state['main'] ) . '</span>';
 		echo ' <span class="iboh-banner-sub" data-iboh-sub>' . esc_html( $state['sub'] ) . '</span>';
+		echo ' <span class="iboh-banner-upcoming" data-iboh-upcoming>' . esc_html( $state['upcoming'] ) . '</span>';
 		echo '</div>';
 
 		if ( ! empty( $banner['dismissible'] ) ) {

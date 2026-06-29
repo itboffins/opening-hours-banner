@@ -39,6 +39,26 @@
 	opacity: 0.9;
 }
 
+/* Upcoming special-date note (banner + inline status). */
+.iboh-banner-upcoming,
+.iboh-status-upcoming {
+	opacity: 0.9;
+}
+
+.iboh-banner-upcoming::before {
+	content: "·";
+	margin-right: 6px;
+	opacity: 0.6;
+}
+
+/* Collapse the secondary lines when empty so they take no gap space. */
+.iboh-banner-sub:empty,
+.iboh-banner-upcoming:empty,
+.iboh-status-sub:empty,
+.iboh-status-upcoming:empty {
+	display: none;
+}
+
 .iboh-banner-close {
 	position: absolute;
 	top: 50%;
@@ -102,6 +122,12 @@
 	opacity: 0.8;
 }
 
+.iboh-status-upcoming::before {
+	content: "·";
+	margin: 0 6px 0 2px;
+	opacity: 0.6;
+}
+
 /* ---- Hours table ---- */
 .iboh-widget {
 	max-width: 420px;
@@ -135,4 +161,18 @@
 
 .iboh-hours tr.iboh-today .iboh-day {
 	position: relative;
+}
+
+/* ---- Upcoming special dates list ---- */
+.iboh-upcoming {
+	margin-top: 16px;
+}
+
+.iboh-upcoming-heading {
+	margin: 0 0 6px;
+	font-size: 13px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	opacity: 0.7;
 }

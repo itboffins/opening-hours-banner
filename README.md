@@ -25,6 +25,12 @@ moment you open or close — no reload required.
 - **Polished editor** — native time pickers, split hours (lunch breaks), copy
   Monday to weekdays.
 - **Holidays / special dates** that override the weekly schedule.
+- **Upcoming dates in advance** — optionally surface every future special date in
+  the banner and hours table ("Closed Wed 25 Dec"); past dates drop off on their
+  own.
+- **Special‑dates‑only mode** — turn the weekly schedule off entirely for events,
+  pop‑ups or by‑appointment venues; the banner hides itself when there is nothing
+  to show that day.
 - **Timezone‑aware**, DST‑correct (uses your WordPress timezone via
   `Intl.DateTimeFormat`).
 - **Overnight hours** (e.g. 22:00 – 02:00).

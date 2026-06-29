@@ -98,9 +98,11 @@ class IBOH_Admin {
 				'tz'         => IBOH_Timezone::iana(),
 				'offset'     => IBOH_Timezone::offset_minutes(),
 				'timeFormat' => (string) get_option( 'time_format', 'H:i' ),
+				'lang'       => str_replace( '_', '-', get_locale() ),
 				'dayNames'   => IBOH_Config::day_names(),
 				'i18n'       => array(
 					'remove' => __( 'Remove', 'opening-hours-banner' ),
+					'hidden' => __( 'Banner hidden — nothing to show today', 'opening-hours-banner' ),
 				),
 			)
 		);
@@ -118,6 +120,7 @@ class IBOH_Admin {
 		$schedule = $settings['schedule'];
 		$banner   = $settings['banner'];
 		$labels   = $settings['labels'];
+		$options  = $settings['options'];
 		$days     = IBOH_Config::day_names();
 		$order    = array( 1, 2, 3, 4, 5, 6, 0 ); // Display Monday..Sunday.
 		?>
@@ -131,6 +134,7 @@ class IBOH_Admin {
 					<span class="iboh-dot" aria-hidden="true"></span>
 					<span class="iboh-preview-main" data-iboh-main>—</span>
 					<span class="iboh-preview-sub" data-iboh-sub></span>
+					<span class="iboh-preview-upcoming" data-iboh-upcoming></span>
 				</div>
 				<p class="description"><?php esc_html_e( 'Reflects the form below in real time, in your site timezone. Save changes to apply them on the front end.', 'opening-hours-banner' ); ?></p>
 			</div>
@@ -142,17 +146,40 @@ class IBOH_Admin {
 					<h2><?php esc_html_e( 'Weekly hours', 'opening-hours-banner' ); ?></h2>
 					<p class="description"><?php esc_html_e( 'Add more than one row per day for split hours (e.g. a lunch break). For overnight hours, set a closing time earlier than the opening time (e.g. 22:00 – 02:00).', 'opening-hours-banner' ); ?></p>
 
-					<div class="iboh-days">
-						<?php foreach ( $order as $dow ) : ?>
-							<?php $this->render_day_row( $dow, $schedule[ $dow ], isset( $days[ $dow ] ) ? $days[ $dow ] : '' ); ?>
-						<?php endforeach; ?>
+					<p class="iboh-weekly-toggle">
+						<label>
+							<input type="checkbox" id="iboh-weekly-enabled" data-iboh-option="weekly_enabled" name="<?php echo esc_attr( IBOH_OPTION ); ?>[options][weekly_enabled]" value="1" <?php checked( $options['weekly_enabled'] ); ?> />
+							<?php esc_html_e( 'Use weekly opening hours', 'opening-hours-banner' ); ?>
+						</label>
+						<span class="description"><?php esc_html_e( 'Turn off if you have no regular weekly hours — only the special dates below will be used.', 'opening-hours-banner' ); ?></span>
+					</p>
+
+					<div class="iboh-weekly-body" <?php echo empty( $options['weekly_enabled'] ) ? 'style="display:none;"' : ''; ?>>
+						<div class="iboh-days">
+							<?php foreach ( $order as $dow ) : ?>
+								<?php $this->render_day_row( $dow, $schedule[ $dow ], isset( $days[ $dow ] ) ? $days[ $dow ] : '' ); ?>
+							<?php endforeach; ?>
+						</div>
+						<p><button type="button" class="button" id="iboh-copy-weekdays"><?php esc_html_e( 'Copy Monday to weekdays', 'opening-hours-banner' ); ?></button></p>
 					</div>
-					<p><button type="button" class="button" id="iboh-copy-weekdays"><?php esc_html_e( 'Copy Monday to weekdays', 'opening-hours-banner' ); ?></button></p>
 				</div>
 
 				<div class="iboh-card">
 					<h2><?php esc_html_e( 'Special dates &amp; holidays', 'opening-hours-banner' ); ?></h2>
 					<p class="description"><?php esc_html_e( 'Override a specific date — close for a public holiday, or set special hours. These take priority over the weekly hours.', 'opening-hours-banner' ); ?></p>
+
+					<fieldset class="iboh-upcoming-mode">
+						<legend class="screen-reader-text"><?php esc_html_e( 'When to show special dates', 'opening-hours-banner' ); ?></legend>
+						<label>
+							<input type="radio" data-iboh-option="show_upcoming" name="<?php echo esc_attr( IBOH_OPTION ); ?>[options][show_upcoming]" value="0" <?php checked( empty( $options['show_upcoming'] ) ); ?> />
+							<?php esc_html_e( 'Only show special hours on the day itself', 'opening-hours-banner' ); ?>
+						</label>
+						<label>
+							<input type="radio" data-iboh-option="show_upcoming" name="<?php echo esc_attr( IBOH_OPTION ); ?>[options][show_upcoming]" value="1" <?php checked( ! empty( $options['show_upcoming'] ) ); ?> />
+							<?php esc_html_e( 'Show all upcoming special dates in advance (banner &amp; hours table)', 'opening-hours-banner' ); ?>
+						</label>
+					</fieldset>
+
 					<div class="iboh-holidays" id="iboh-holidays">
 						<?php
 						$i = 0;
@@ -236,6 +263,10 @@ class IBOH_Admin {
 							'opens_on'     => __( 'Closed, opens another day (%1$s = day, %2$s = time)', 'opening-hours-banner' ),
 							'opening_soon' => __( 'About to open', 'opening-hours-banner' ),
 							'closing_soon' => __( 'About to close', 'opening-hours-banner' ),
+							'open_24h'         => __( 'Shown for a day that is open around the clock', 'opening-hours-banner' ),
+							'upcoming_heading' => __( 'Heading above the upcoming special dates list', 'opening-hours-banner' ),
+							'upcoming_closed'  => __( 'Upcoming closed date (%s = date)', 'opening-hours-banner' ),
+							'upcoming_hours'   => __( 'Upcoming special hours (%1$s = date, %2$s = hours)', 'opening-hours-banner' ),
 						);
 						foreach ( $labels as $key => $value ) :
 							?>

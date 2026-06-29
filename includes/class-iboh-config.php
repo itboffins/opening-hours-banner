@@ -32,9 +32,11 @@ class IBOH_Config {
 			'tz'         => IBOH_Timezone::iana(),
 			'offset'     => IBOH_Timezone::offset_minutes(),
 			'timeFormat' => (string) get_option( 'time_format', 'H:i' ),
+			'lang'       => str_replace( '_', '-', get_locale() ),
 			'dayNames'   => self::day_names(),
 			'schedule'   => $settings['schedule'],
 			'holidays'   => $settings['holidays'],
+			'options'    => $settings['options'],
 			'labels'     => $settings['labels'],
 			'banner'     => $settings['banner'],
 		);

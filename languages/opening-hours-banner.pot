@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later license.
 msgid ""
 msgstr ""
-"Project-Id-Version: Opening Hours by IT Boffins 1.0.0\n"
+"Project-Id-Version: Opening Hours by IT Boffins 1.1.0\n"
 "Report-Msgid-Bugs-To: https://itboffins.com/\n"
 "Last-Translator: IT Boffins <hello@itboffins.com>\n"
 "Language-Team: IT Boffins <hello@itboffins.com>\n"
@@ -45,6 +45,18 @@ msgstr ""
 msgid "Open 24 hours"
 msgstr ""
 
+#. Heading above the list of upcoming special dates.
+msgid "Upcoming dates"
+msgstr ""
+
+#. Upcoming closed special date. %s = date (and optional label).
+msgid "Closed %s"
+msgstr ""
+
+#. Upcoming special hours. %1$s = date (and optional label), %2$s = hours.
+msgid "%1$s: %2$s"
+msgstr ""
+
 msgid "Opening Hours"
 msgstr ""
 
@@ -66,10 +78,25 @@ msgstr ""
 msgid "Copy Monday to weekdays"
 msgstr ""
 
+msgid "Use weekly opening hours"
+msgstr ""
+
+msgid "Turn off if you have no regular weekly hours — only the special dates below will be used."
+msgstr ""
+
 msgid "Special dates &amp; holidays"
 msgstr ""
 
 msgid "Override a specific date — close for a public holiday, or set special hours. These take priority over the weekly hours."
+msgstr ""
+
+msgid "When to show special dates"
+msgstr ""
+
+msgid "Only show special hours on the day itself"
+msgstr ""
+
+msgid "Show all upcoming special dates in advance (banner &amp; hours table)"
 msgstr ""
 
 msgid "Add a date"
@@ -139,7 +166,27 @@ msgstr ""
 msgid "More free plugins at %s"
 msgstr ""
 
+#. Admin help text for the "Open 24 hours" wording field.
+msgid "Shown for a day that is open around the clock"
+msgstr ""
+
+#. Admin help text for the upcoming-dates heading wording field.
+msgid "Heading above the upcoming special dates list"
+msgstr ""
+
+#. Admin help text. %s = date.
+msgid "Upcoming closed date (%s = date)"
+msgstr ""
+
+#. Admin help text. %1$s = date, %2$s = hours.
+msgid "Upcoming special hours (%1$s = date, %2$s = hours)"
+msgstr ""
+
 msgid "Remove"
+msgstr ""
+
+#. Live preview placeholder when the banner would be hidden on the front end.
+msgid "Banner hidden — nothing to show today"
 msgstr ""
 
 msgid "+ Add hours"

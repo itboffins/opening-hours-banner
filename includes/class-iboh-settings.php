@@ -57,6 +57,16 @@ class IBOH_Settings {
 			// weekday's hours for the given date.
 			'holidays' => array(),
 
+			// Display behaviour that is neither schedule data nor banner styling.
+			'options'  => array(
+				// Use the weekly schedule at all. Off = "special dates only"
+				// (e.g. an events / by-appointment venue with no fixed week).
+				'weekly_enabled' => 1,
+				// Surface upcoming special dates ahead of time (banner + table),
+				// not just on the day itself. Off keeps the 1.0 behaviour.
+				'show_upcoming'  => 0,
+			),
+
 			'banner'   => array(
 				'enabled'       => 1,
 				'position'      => 'top',   // 'top' | 'bottom'.
@@ -77,6 +87,13 @@ class IBOH_Settings {
 				'opens_on'     => __( 'Opens %1$s at %2$s', 'opening-hours-banner' ),
 				'opening_soon' => __( 'Opening soon', 'opening-hours-banner' ),
 				'closing_soon' => __( 'Closing soon', 'opening-hours-banner' ),
+				'open_24h'     => __( 'Open 24 hours', 'opening-hours-banner' ),
+				/* translators: heading above the list of upcoming special dates. */
+				'upcoming_heading' => __( 'Upcoming dates', 'opening-hours-banner' ),
+				/* translators: %s = date (and optional label), e.g. "Wed 25 Dec (Christmas)". */
+				'upcoming_closed'  => __( 'Closed %s', 'opening-hours-banner' ),
+				/* translators: %1$s = date (and optional label), %2$s = hours, e.g. "Sat 31 Dec: 10:00 – 14:00". */
+				'upcoming_hours'   => __( '%1$s: %2$s', 'opening-hours-banner' ),
 			),
 		);
 	}
@@ -115,7 +132,11 @@ class IBOH_Settings {
 		// Holidays: keep as-is if it is an array, else reset.
 		$out['holidays'] = ( isset( $saved['holidays'] ) && is_array( $saved['holidays'] ) ) ? $saved['holidays'] : array();
 
-		// Banner + labels: deep-merge over defaults.
+		// Options + banner + labels: deep-merge over defaults.
+		$out['options'] = wp_parse_args(
+			( isset( $saved['options'] ) && is_array( $saved['options'] ) ) ? $saved['options'] : array(),
+			$defaults['options']
+		);
 		$out['banner'] = wp_parse_args(
 			( isset( $saved['banner'] ) && is_array( $saved['banner'] ) ) ? $saved['banner'] : array(),
 			$defaults['banner']
@@ -190,6 +211,12 @@ class IBOH_Settings {
 			$count++;
 		}
 		ksort( $out['holidays'] );
+
+		// --- Options --------------------------------------------------------
+		$options                       = isset( $input['options'] ) && is_array( $input['options'] ) ? $input['options'] : array();
+		$out['options']                = array();
+		$out['options']['weekly_enabled'] = empty( $options['weekly_enabled'] ) ? 0 : 1;
+		$out['options']['show_upcoming']  = empty( $options['show_upcoming'] ) ? 0 : 1;
 
 		// --- Banner ---------------------------------------------------------
 		$banner                  = isset( $input['banner'] ) && is_array( $input['banner'] ) ? $input['banner'] : array();
