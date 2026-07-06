@@ -1,9 +1,9 @@
 <?php
 /**
- * [opening_hours] shortcode and the shared table/status renderers used by both
- * the shortcode and the block.
+ * [iboh_opening_hours] shortcode and the shared table/status renderers used by
+ * both the shortcode and the block.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,7 +19,7 @@ class IBOH_Shortcode {
 	 * Register the shortcode.
 	 */
 	public function init() {
-		add_shortcode( 'opening_hours', array( __CLASS__, 'render' ) );
+		add_shortcode( 'iboh_opening_hours', array( __CLASS__, 'render' ) );
 	}
 
 	/**
@@ -34,7 +34,7 @@ class IBOH_Shortcode {
 				'show' => 'table',
 			),
 			$atts,
-			'opening_hours'
+			'iboh_opening_hours'
 		);
 
 		$show = in_array( $atts['show'], array( 'table', 'status', 'both' ), true ) ? $atts['show'] : 'table';
@@ -60,15 +60,18 @@ class IBOH_Shortcode {
 	 * @return string
 	 */
 	public static function status_html() {
-		$state = IBOH_Evaluator::state();
-		$class = $state['open'] ? 'iboh-open' : 'iboh-closed';
-		$style = empty( $state['show'] ) ? ' style="display:none;"' : '';
+		$state           = IBOH_Evaluator::state();
+		$class           = $state['open'] ? 'iboh-open' : 'iboh-closed';
+		$style           = empty( $state['show'] ) ? ' style="display:none;"' : '';
+		$upcoming_markup = ( isset( $state['upcoming_html'] ) && '' !== $state['upcoming_html'] )
+			? $state['upcoming_html']
+			: esc_html( $state['upcoming'] );
 
 		$html  = '<p class="iboh-status ' . esc_attr( $class ) . '" data-iboh-status' . $style . '>';
 		$html .= '<span class="iboh-dot" aria-hidden="true"></span>';
 		$html .= '<span class="iboh-status-main" data-iboh-main>' . esc_html( $state['main'] ) . '</span>';
 		$html .= ' <span class="iboh-status-sub" data-iboh-sub>' . esc_html( $state['sub'] ) . '</span>';
-		$html .= ' <span class="iboh-status-upcoming" data-iboh-upcoming>' . esc_html( $state['upcoming'] ) . '</span>';
+		$html .= ' <span class="iboh-status-upcoming" data-iboh-upcoming>' . wp_kses_post( $upcoming_markup ) . '</span>';
 		$html .= '</p>';
 
 		return $html;
@@ -128,34 +131,48 @@ class IBOH_Shortcode {
 	public static function upcoming_html() {
 		$holidays = IBOH_Settings::get( 'holidays' );
 		$labels   = IBOH_Settings::get( 'labels' );
+		$options  = IBOH_Settings::get( 'options' );
 
 		if ( ! is_array( $holidays ) ) {
 			$holidays = array();
 		}
 		ksort( $holidays );
-		$today = IBOH_Timezone::now()->format( 'Y-m-d' );
+		$now         = IBOH_Timezone::now();
+		$today       = $now->format( 'Y-m-d' );
+		$bank_cutoff = $now->modify( '+7 days' )->format( 'Y-m-d' );
+		$bank_mode   = isset( $options['bank_holiday_mode'] ) ? (string) $options['bank_holiday_mode'] : 'seven_days';
+		if ( ! in_array( $bank_mode, array( 'seven_days', 'all', 'none' ), true ) ) {
+			$bank_mode = 'seven_days';
+		}
 
-		$rows = '';
+		$rows         = '';
+		$visible_rows = false;
 		foreach ( $holidays as $date => $h ) {
 			if ( $date < $today ) {
 				continue;
 			}
 			$closed     = ! empty( $h['closed'] );
 			$label      = isset( $h['label'] ) ? $h['label'] : '';
+			$source     = ( isset( $h['source'] ) && 'bank_holiday' === $h['source'] ) ? 'bank_holiday' : '';
+			$hide_row   = ( 'bank_holiday' === $source && ( 'none' === $bank_mode || ( 'all' !== $bank_mode && $date > $bank_cutoff ) ) );
 			$date_text  = self::fmt_date( $date );
 			$date_label = ( '' !== $label ) ? $date_text . ' (' . $label . ')' : $date_text;
 			$hours      = $closed
-				? __( 'Closed', 'opening-hours-banner' )
+				? __( 'Closed', 'itboffins-live-opening-hours' )
 				: self::format_day_hours( array( 'closed' => 0, 'ranges' => isset( $h['ranges'] ) ? $h['ranges'] : array() ), $labels );
 
-			$rows .= '<tr data-iboh-date="' . esc_attr( $date ) . '">';
+			if ( ! $hide_row ) {
+				$visible_rows = true;
+			}
+
+			$rows .= '<tr data-iboh-date="' . esc_attr( $date ) . '" data-iboh-source="' . esc_attr( $source ) . '"' . ( $hide_row ? ' style="display:none;"' : '' ) . '>';
 			$rows .= '<th scope="row" class="iboh-day">' . esc_html( $date_label ) . '</th>';
 			$rows .= '<td class="iboh-times">' . esc_html( $hours ) . '</td>';
 			$rows .= '</tr>';
 		}
 
 		$heading = isset( $labels['upcoming_heading'] ) ? $labels['upcoming_heading'] : '';
-		$hidden  = ( '' === $rows ) ? ' style="display:none;"' : '';
+		$hidden  = ( '' === $rows || ! $visible_rows ) ? ' style="display:none;"' : '';
 
 		$html  = '<div class="iboh-upcoming" data-iboh-upcoming-list' . $hidden . '>';
 		if ( '' !== $heading ) {
@@ -176,12 +193,12 @@ class IBOH_Shortcode {
 	 */
 	private static function format_day_hours( $day, $labels ) {
 		if ( ! empty( $day['closed'] ) || empty( $day['ranges'] ) ) {
-			return __( 'Closed', 'opening-hours-banner' );
+			return __( 'Closed', 'itboffins-live-opening-hours' );
 		}
 
 		// Whole-day open shortcut.
 		if ( 1 === count( $day['ranges'] ) && '00:00' === $day['ranges'][0]['open'] && '24:00' === $day['ranges'][0]['close'] ) {
-			return isset( $labels['open_24h'] ) ? $labels['open_24h'] : __( 'Open 24 hours', 'opening-hours-banner' );
+			return isset( $labels['open_24h'] ) ? $labels['open_24h'] : __( 'Open 24 hours', 'itboffins-live-opening-hours' );
 		}
 
 		$parts = array();

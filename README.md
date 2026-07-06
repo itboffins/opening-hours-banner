@@ -1,84 +1,68 @@
-# Opening Hours by IT Boffins
+# ITBoffins Live Opening Hours Banner & Table
 
-Show your opening hours and a live **We're open / Closed** banner that stays
-correct **even with page caching** — no external services, no account, works on
-any WordPress host.
+Show a dynamic opening-hours table and a friendly **We're open / Sorry, we're closed** banner from the same private WordPress schedule. It is free, private, and works on ordinary WordPress hosting.
 
-> **Note on this repository.** This plugin is fully self‑contained and is
-> intended to live in its own repository (`itboffins/opening-hours-banner`). It
-> was scaffolded alongside *Local Image Optimiser* for convenience; the
-> `opening-hours-banner/` folder can be moved into a standalone repo as‑is.
+> **Note on this repository.** This plugin is fully self-contained and is intended to live in its own repository (`itboffins/itboffins-live-opening-hours`). It was scaffolded alongside *Local Image Optimiser* for convenience; the `itboffins-live-opening-hours/` folder can be moved into a standalone repo as-is.
 
 ## Why
 
-Most opening‑hours plugins compute the open/closed status on the server and bake
-it into the HTML. As soon as a caching plugin or CDN stores that page, the status
-**freezes and goes stale** — a common, much‑complained‑about failure.
+Customers should not have to dig around to find out whether a business is open. This plugin gives small business owners a simple place to set regular hours, holidays, early finishes, late openings, and one-off changes.
 
-This plugin computes the live status **in the browser** from your schedule, so
-the banner is always correct regardless of full‑page caching, and it flips the
-moment you open or close — no reload required.
+The main USP is that both the opening-hours table and the notice bar stay live from the saved schedule. A cached page is still fast, but the customer-facing status can update in the browser without a manual edit or page rebuild.
 
 ## Features
 
-- **Caching‑safe** live status (works with WP Rocket, LiteSpeed, Cloudflare, …).
-- **Polished editor** — native time pickers, split hours (lunch breaks), copy
-  Monday to weekdays.
-- **Holidays / special dates** that override the weekly schedule.
-- **Upcoming dates in advance** — optionally surface every future special date in
-  the banner and hours table ("Closed Wed 25 Dec"); past dates drop off on their
-  own.
-- **Special‑dates‑only mode** — turn the weekly schedule off entirely for events,
-  pop‑ups or by‑appointment venues; the banner hides itself when there is nothing
-  to show that day.
-- **Timezone‑aware**, DST‑correct (uses your WordPress timezone via
-  `Intl.DateTimeFormat`).
-- **Overnight hours** (e.g. 22:00 – 02:00).
-- **Status banner** (top/bottom, your colours, dismissible, "Closes at …" /
-  "Opens …" and "soon" wording).
-- **Block + shortcode** to show hours/status anywhere.
-- **No external API**, nothing leaves your server.
+- **Dynamic opening-hours table** for regular hours and upcoming changes.
+- **Friendly live notice bar** for open, closed, opening soon, and closing soon messages.
+- **Loading-state notice bar** so cached pages do not flash stale text before the live status is ready.
+- **Flexible banner layout** with sticky/non-sticky and top spacing/overlay controls.
+- **Simple weekly-hours editor** with time pickers, lunch breaks, and one-click weekday copying.
+- **Holidays and one-off changes** for bank holidays, Christmas, special Saturdays, early closes, and appointment-only dates.
+- **UK bank-holiday helper** to add standard England & Wales, Scotland, or Northern Ireland bank holidays as closed dates for a selected year.
+- **Bank-holiday priority** so saved bank holidays override same-date manual special dates.
+- **Separate bank-holiday notice controls** to show bank holidays within 7 days, all future bank holidays, or no bank holidays in upcoming notices.
+- **Upcoming changes** so customers can see future closures or special hours in advance.
+- **Cleaner notice layout** with upcoming dates and times shown as separate, wrapped date/detail items.
+- **Special-dates-only mode** for pop-ups, events, seasonal venues, and appointment-led businesses.
+- **Timezone-aware** using the site's WordPress timezone, including daylight saving changes.
+- **Overnight hours** for late-night venues, such as 22:00-02:00.
+- **Block and shortcode** to show hours or status anywhere on the site.
+- **Theme-friendly typography** so public banner and table text inherit the site's body/content font.
+- **No accounts or tracking**. No external API, no API keys, and nothing sent off-site.
 
-## How the caching‑safety works
+## How it stays fresh on fast sites
 
-The localized config (`IBOH_DATA`) carries only the *schedule definition*, never
-a computed status. `assets/frontend.js` evaluates open/closed live and re‑runs on
-a 30‑second timer (and on tab focus). Timezone math uses
-`Intl.DateTimeFormat({ timeZone })` so it reflects the **site's** wall clock, not
-the visitor's, and handles daylight saving automatically. A PHP mirror
-(`includes/class-iboh-evaluator.php`) renders a sensible no‑JS fallback.
+When the public page loads, the browser uses the saved schedule to decide what customers should see. It checks again every 30 seconds and when a visitor returns to the tab, so the message can change without a page reload. The site timezone is used, so daylight saving follows the WordPress settings. A PHP fallback keeps the page sensible if JavaScript is unavailable.
 
 ## Usage
 
-- **Admin:** *Opening Hours* in the WordPress menu.
-- **Shortcode:** `[opening_hours show="table|status|both"]`
-- **Block:** search for *Opening Hours* in the block inserter.
+- **Admin:** *Live Opening Hours* in the WordPress menu.
+- **Shortcode:** `[iboh_opening_hours show="table|status|both"]`
+- **Block:** search for *Live Opening Hours* in the block inserter.
 
 ## Structure
 
 ```
-opening-hours-banner.php      Bootstrap (constants, singleton, activation)
+itboffins-live-opening-hours.php      Bootstrap (constants, singleton, activation)
 includes/
   class-iboh-settings.php     Options array: defaults / all / get / sanitize
-  class-iboh-timezone.php     Site timezone → IANA name + DST-aware offset
+  class-iboh-timezone.php     Site timezone -> IANA name + DST-aware offset
   class-iboh-config.php       Canonical config shared by PHP + JS
   class-iboh-evaluator.php    Server-side open/closed (no-JS fallback)
   class-iboh-frontend.php     Asset enqueue, localize, banner injection
-  class-iboh-shortcode.php    [opening_hours] + table/status renderers
+  class-iboh-shortcode.php    [iboh_opening_hours] + table/status renderers
   class-iboh-block.php        Server-rendered block (reuses the shortcode)
   class-iboh-admin.php        Settings page + schedule editor
-  class-iboh-ajax.php         Nonce-guarded preview endpoint
 assets/
-  admin.css / admin.js        Schedule editor + live preview
-  frontend.css / frontend.js  Banner + client-side evaluator
+  admin.css / admin.js        Schedule editor + customer preview
+  frontend.css / frontend.js  Notice bar + live status logic
   editor.js                   Block editor (no build step)
 ```
 
 ## Development
 
-Plain PHP WordPress plugin — **no build step**, no Composer, no npm. Targets the
-[WordPress Coding Standards](https://github.com/WordPress/WordPress-Coding-Standards).
+Plain PHP WordPress plugin: no build step, no Composer, no npm. Targets the [WordPress Coding Standards](https://github.com/WordPress/WordPress-Coding-Standards).
 
 ## License
 
-GPL‑2.0‑or‑later. More free plugins at [itboffins.com](https://itboffins.com/).
+GPL-2.0-or-later.

@@ -1,17 +1,17 @@
-/* Opening Hours by IT Boffins — admin styles (IT Boffins brand). */
+/* ITBoffins Live Opening Hours — admin styles (IT Boffins brand). */
 
 .iboh-wrap {
 	--iboh-ink: #000;
 	--iboh-paper: #fff;
-	--iboh-soft: #f7f8f6;
+	--iboh-soft: #f6fbf8;
 	--iboh-muted: #575f5b;
 	--iboh-green: #00b86b;
 	--iboh-green-deep: #00794a;
 	--iboh-green-50: #effdf6;
 	--iboh-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 	--iboh-mono: "Space Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-	--iboh-shadow: 6px 6px 0 0 var(--iboh-ink);
-	--iboh-shadow-sm: 4px 4px 0 0 var(--iboh-ink);
+	--iboh-shadow: 4px 4px 0 0 var(--iboh-ink);
+	--iboh-shadow-sm: 3px 3px 0 0 var(--iboh-ink);
 
 	font-family: var(--iboh-sans);
 	max-width: 920px;
@@ -27,18 +27,20 @@
 	background: var(--iboh-paper);
 	border: 1px solid var(--iboh-ink);
 	box-shadow: var(--iboh-shadow);
+	border-radius: 6px;
 	padding: 18px 22px;
 	margin: 18px 0 8px;
 }
 
 .iboh-logo {
 	display: inline-flex;
-	color: var(--iboh-ink);
+	align-items: center;
 }
 
-.iboh-logo-svg {
+.iboh-logo-img {
 	height: 38px;
 	width: auto;
+	max-width: 100%;
 	display: block;
 }
 
@@ -65,7 +67,7 @@
 	font-size: 10px;
 	font-weight: 700;
 	text-transform: uppercase;
-	letter-spacing: 0.18em;
+	letter-spacing: 0;
 	color: var(--iboh-muted);
 }
 
@@ -73,18 +75,25 @@
 .iboh-wrap h1 {
 	font-family: var(--iboh-sans);
 	font-weight: 800;
-	text-transform: uppercase;
-	letter-spacing: -0.01em;
-	font-size: 28px;
+	letter-spacing: 0;
+	font-size: 30px;
 	line-height: 1.05;
 	margin: 6px 0 4px;
+}
+
+.iboh-intro {
+	max-width: 640px;
+	margin: 6px 0 14px;
+	font-size: 15px;
+	line-height: 1.5;
+	color: var(--iboh-muted);
 }
 
 .iboh-wrap h2 {
 	font-family: var(--iboh-sans);
 	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: -0.01em;
+	letter-spacing: 0;
+	font-size: 20px;
 	margin-top: 0;
 }
 
@@ -92,7 +101,7 @@
 .iboh-wrap .iboh-card {
 	background: var(--iboh-paper);
 	border: 1px solid var(--iboh-ink);
-	border-radius: 0;
+	border-radius: 6px;
 	box-shadow: var(--iboh-shadow);
 	padding: 22px 24px;
 	margin: 18px 0;
@@ -102,7 +111,7 @@
 	font-size: 13px;
 }
 
-/* ---- Live preview ---- */
+/* ---- Customer preview ---- */
 .iboh-preview-card {
 	background: var(--iboh-soft) !important;
 }
@@ -111,8 +120,11 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 10px;
+	flex-wrap: wrap;
+	justify-content: center;
 	padding: 12px 18px;
 	border: 1px solid var(--iboh-ink);
+	border-radius: 6px;
 	box-shadow: var(--iboh-shadow-sm);
 	background: var(--iboh-green-deep);
 	color: #fff;
@@ -130,7 +142,13 @@
 }
 
 .iboh-preview-upcoming {
-	opacity: 0.9;
+	display: inline-flex;
+	align-items: baseline;
+	flex: 1 1 100%;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 4px 10px;
+	opacity: 0.95;
 }
 
 .iboh-preview-upcoming:empty,
@@ -138,10 +156,31 @@
 	display: none;
 }
 
-.iboh-preview-upcoming::before {
-	content: "·";
-	margin-right: 6px;
-	opacity: 0.6;
+.iboh-preview-upcoming .iboh-upcoming-item {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.35em;
+	white-space: nowrap;
+}
+
+.iboh-preview-upcoming .iboh-upcoming-item::before {
+	content: "";
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.55;
+	align-self: center;
+	flex: 0 0 auto;
+}
+
+.iboh-preview-upcoming .iboh-upcoming-date {
+	font-weight: 700;
+}
+
+.iboh-preview-upcoming .iboh-upcoming-detail {
+	font-weight: 400;
+	opacity: 0.92;
 }
 
 /* Muted treatment when the banner would be hidden on the front end. */
@@ -171,7 +210,7 @@
 	font-weight: 400;
 }
 
-/* ---- "When to show special dates" radios ---- */
+/* ---- Upcoming notice controls ---- */
 .iboh-upcoming-mode {
 	display: flex;
 	flex-direction: column;
@@ -180,6 +219,41 @@
 	padding: 12px 14px;
 	background: var(--iboh-soft);
 	border: 1px solid #ddd;
+}
+
+.iboh-upcoming-mode legend {
+	font-weight: 700;
+	margin-bottom: 4px;
+}
+
+.iboh-bank-holidays {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16px;
+	flex-wrap: wrap;
+	margin: 0 0 16px;
+	padding: 14px;
+	background: #fff;
+	border: 1px solid #ddd;
+}
+
+.iboh-bank-holidays strong {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.iboh-bank-holiday-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.iboh-bank-holiday-status {
+	flex-basis: 100%;
+	margin: 0;
+	font-weight: 600;
 }
 .iboh-day-row {
 	display: grid;
@@ -205,6 +279,16 @@
 	align-items: center;
 	gap: 8px;
 	margin-bottom: 8px;
+	flex-wrap: wrap;
+}
+
+.iboh-range-24h {
+	white-space: nowrap;
+}
+
+.iboh-range input[type="time"]:disabled {
+	background: #f1f1f1;
+	color: var(--iboh-muted);
 }
 
 .iboh-range-sep {

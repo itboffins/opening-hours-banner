@@ -1,4 +1,4 @@
-/* Opening Hours by IT Boffins — front-end (vanilla JS, no jQuery).
+/* ITBoffins Live Opening Hours — front-end (vanilla JS, no jQuery).
  *
  * The open/closed state is computed here, in the browser, from the schedule
  * definition. That is what keeps the status correct even when the page HTML is
@@ -80,6 +80,11 @@
 		return ( o.weekly_enabled === undefined ) ? true : !! ( +o.weekly_enabled );
 	}
 
+	function bankHolidayMode( cfg ) {
+		var mode = ( ( cfg.options || {} ).bank_holiday_mode || 'seven_days' );
+		return ( 'all' === mode || 'none' === mode ) ? mode : 'seven_days';
+	}
+
 	/* Effective plan for a date, holiday override winning. The 'defined' flag is
 	 * false when weekly hours are off and the date has no special override —
 	 * meaning the day has no status to show, as distinct from being "closed". */
@@ -96,26 +101,39 @@
 		return { closed: !! ( +d.closed ), ranges: d.ranges || [], defined: true };
 	}
 
-	/* Soonest special date strictly after today, or null. */
-	function nextUpcoming( cfg, todayYmd ) {
+	/* Special dates strictly after today, sorted by date. */
+	function upcomingEvents( cfg, todayYmd ) {
 		if ( ! cfg.holidays ) {
-			return null;
+			return [];
 		}
+		var out = [];
 		var dates = Object.keys( cfg.holidays ).sort();
+		var bankCutoff = shiftYmd( todayYmd, 7 ).ymd;
+		var bankMode = bankHolidayMode( cfg );
 		for ( var i = 0; i < dates.length; i++ ) {
 			if ( dates[ i ] <= todayYmd ) {
 				continue;
 			}
 			var h = cfg.holidays[ dates[ i ] ];
+			var source = h.source || '';
+			if ( 'bank_holiday' === source ) {
+				if ( 'none' === bankMode ) {
+					continue;
+				}
+				if ( 'all' !== bankMode && dates[ i ] > bankCutoff ) {
+					continue;
+				}
+			}
 			var closed = !! ( +h.closed );
-			return {
+			out.push( {
 				date: dates[ i ],
 				closed: closed,
 				ranges: closed ? [] : ( h.ranges || [] ),
-				label: h.label || ''
-			};
+				label: h.label || '',
+				source: source
+			} );
 		}
-		return null;
+		return out;
 	}
 
 	function evaluate( cfg, t ) {
@@ -245,6 +263,94 @@
 		return sprintf( L.upcoming_hours || '', [ dateLabel, fmtRanges( cfg, ev.ranges ) ] );
 	}
 
+
+	function formatEvents( cfg, events ) {
+		if ( ! events || ! events.length ) {
+			return '';
+		}
+
+		var parts = [];
+		var closedDates = [];
+		function flushClosedDates() {
+			if ( closedDates.length ) {
+				parts.push( formatClosedDates( cfg, closedDates ) );
+				closedDates = [];
+			}
+		}
+
+		events.forEach( function ( ev ) {
+			if ( ev.closed || ! ev.ranges || ! ev.ranges.length ) {
+				closedDates.push( eventDateLabel( cfg, ev ) );
+				return;
+			}
+
+			flushClosedDates();
+			parts.push( formatEvent( cfg, ev ) );
+		} );
+		flushClosedDates();
+
+		return parts.filter( Boolean ).join( ' · ' );
+	}
+
+	function eventDateLabel( cfg, ev ) {
+		var dateText = fmtDate( cfg, ev.date );
+		return ev.label ? ( dateText + ' (' + ev.label + ')' ) : dateText;
+	}
+
+	function formatClosedDates( cfg, closedDates ) {
+		var L = cfg.labels || {};
+		if ( 1 === closedDates.length ) {
+			return sprintf( L.upcoming_closed || '', [ closedDates[ 0 ] ] );
+		}
+		return sprintf( L.upcoming_closed_list || '%s we are closed', [ humanList( closedDates ) ] );
+	}
+
+	function humanList( items ) {
+		if ( items.length <= 1 ) {
+			return items[ 0 ] || '';
+		}
+		if ( 2 === items.length ) {
+			return items[ 0 ] + ' and ' + items[ 1 ];
+		}
+		return items.slice( 0, -1 ).join( ', ' ) + ', and ' + items[ items.length - 1 ];
+	}
+
+	function escapeHtml( value ) {
+		return String( value )
+			.replace( /&/g, '&amp;' )
+			.replace( /</g, '&lt;' )
+			.replace( />/g, '&gt;' )
+			.replace( /"/g, '&quot;' )
+			.replace( /'/g, '&#039;' );
+	}
+
+	function eventParts( cfg, ev ) {
+		return {
+			date: eventDateLabel( cfg, ev ),
+			detail: ( ev.closed || ! ev.ranges || ! ev.ranges.length )
+				? ( cfg.closedText || 'Closed' )
+				: fmtRanges( cfg, ev.ranges )
+		};
+	}
+
+	function formatEventHtml( cfg, ev ) {
+		var parts = eventParts( cfg, ev );
+		return '<span class="iboh-upcoming-item"><strong class="iboh-upcoming-date">' +
+			escapeHtml( parts.date ) +
+			'</strong><span class="iboh-upcoming-detail">' +
+			escapeHtml( parts.detail ) +
+			'</span></span>';
+	}
+
+	function formatEventsHtml( cfg, events ) {
+		if ( ! events || ! events.length ) {
+			return '';
+		}
+		return events.map( function ( ev ) {
+			return formatEventHtml( cfg, ev );
+		} ).join( '' );
+	}
+
 	function sprintf( tpl, args ) {
 		if ( ! tpl ) {
 			return '';
@@ -270,8 +376,9 @@
 		var weekly = weeklyEnabled( cfg );
 		var showUpcoming = !! ( +O.show_upcoming ) || ! weekly;
 		var todayDefined = dayPlan( cfg, t.ymd, t.dow ).defined;
-		var upcoming = showUpcoming ? nextUpcoming( cfg, t.ymd ) : null;
-		var upText = upcoming ? formatEvent( cfg, upcoming ) : '';
+		var upcoming = showUpcoming ? upcomingEvents( cfg, t.ymd ) : [];
+		var upText = upcoming.length ? formatEvents( cfg, upcoming ) : '';
+		var upHtml = upcoming.length ? formatEventsHtml( cfg, upcoming ) : '';
 
 		if ( ev.open ) {
 			var main = L.open || '';
@@ -284,7 +391,7 @@
 					main = L.closing_soon || main;
 				}
 			}
-			return { show: true, open: true, main: main, sub: sub, upcoming: upText };
+			return { show: true, open: true, main: main, sub: sub, upcoming: upText, upcomingHtml: upHtml };
 		}
 
 		if ( todayDefined ) {
@@ -303,20 +410,21 @@
 					cmain = L.opening_soon || cmain;
 				}
 			}
-			return { show: true, open: false, main: cmain, sub: csub, upcoming: upText };
+			return { show: true, open: false, main: cmain, sub: csub, upcoming: upText, upcomingHtml: upHtml };
 		}
 
 		// Weekly off, nothing today: announce the next date, or hide entirely.
-		if ( upcoming ) {
+		if ( upcoming.length ) {
 			return {
 				show: true,
-				open: ( ! upcoming.closed && upcoming.ranges.length > 0 ),
+				open: ( 1 === upcoming.length && ! upcoming[ 0 ].closed && upcoming[ 0 ].ranges.length > 0 ),
 				main: upText,
 				sub: '',
-				upcoming: ''
+				upcoming: '',
+				upcomingHtml: ''
 			};
 		}
-		return { show: false, open: false, main: '', sub: '', upcoming: '' };
+		return { show: false, open: false, main: '', sub: '', upcoming: '', upcomingHtml: '' };
 	}
 
 	function dayName( cfg, dow ) {
@@ -332,13 +440,40 @@
 		}
 	}
 
+	function setHtml( root, sel, html ) {
+		var el = root.querySelector( sel );
+		if ( el ) {
+			el.innerHTML = html;
+		}
+	}
+
+	function applyBannerLayout( el, cfg ) {
+		var B = cfg.banner || {};
+		var pos = ( 'bottom' === B.position ) ? 'bottom' : 'top';
+		var sticky = ( B.sticky === undefined ) ? true : !! ( +B.sticky );
+		var pushTop = ( B.push_top === undefined ) ? true : !! ( +B.push_top );
+
+		el.classList.toggle( 'iboh-pos-top', 'top' === pos );
+		el.classList.toggle( 'iboh-pos-bottom', 'bottom' === pos );
+		el.classList.toggle( 'iboh-sticky', sticky );
+		el.classList.toggle( 'iboh-not-sticky', ! sticky );
+		el.classList.toggle( 'iboh-push-top', 'top' === pos && pushTop );
+		el.classList.toggle( 'iboh-overlay-top', 'top' === pos && ! pushTop );
+	}
+
+	function finishBannerLoading( el ) {
+		el.classList.remove( 'iboh-loading' );
+		el.removeAttribute( 'aria-busy' );
+	}
+
 	function applyBanner( el, cfg ) {
+		applyBannerLayout( el, cfg );
 		var s = buildStatus( cfg, siteNow( cfg ) );
 		if ( ! s.show ) {
 			el.style.display = 'none';
+			finishBannerLoading( el );
 			return;
 		}
-		el.style.display = '';
 		el.classList.toggle( 'iboh-open', s.open );
 		el.classList.toggle( 'iboh-closed', ! s.open );
 		var B = cfg.banner || {};
@@ -346,7 +481,9 @@
 		el.style.color = B.colour_text;
 		setText( el, '[data-iboh-main]', s.main );
 		setText( el, '[data-iboh-sub]', s.sub );
-		setText( el, '[data-iboh-upcoming]', s.upcoming || '' );
+		setHtml( el, '[data-iboh-upcoming]', s.upcomingHtml || s.upcoming || '' );
+		finishBannerLoading( el );
+		el.style.display = '';
 	}
 
 	function applyStatus( el, cfg ) {
@@ -356,7 +493,7 @@
 		el.classList.toggle( 'iboh-closed', ! s.open );
 		setText( el, '[data-iboh-main]', s.main );
 		setText( el, '[data-iboh-sub]', s.sub );
-		setText( el, '[data-iboh-upcoming]', s.upcoming || '' );
+		setHtml( el, '[data-iboh-upcoming]', s.upcomingHtml || s.upcoming || '' );
 	}
 
 	function applyTable( el, cfg ) {
@@ -372,11 +509,16 @@
 	function applyUpcoming( el, cfg ) {
 		var t = siteNow( cfg );
 		var rows = el.querySelectorAll( '[data-iboh-date]' );
+		var bankCutoff = shiftYmd( t.ymd, 7 ).ymd;
+		var bankMode = bankHolidayMode( cfg );
 		var anyVisible = false;
 		Array.prototype.forEach.call( rows, function ( row ) {
-			var past = row.getAttribute( 'data-iboh-date' ) < t.ymd;
-			row.style.display = past ? 'none' : '';
-			if ( ! past ) {
+			var date = row.getAttribute( 'data-iboh-date' ) || '';
+			var holiday = ( cfg.holidays && cfg.holidays[ date ] ) ? cfg.holidays[ date ] : {};
+			var source = holiday.source || row.getAttribute( 'data-iboh-source' ) || '';
+			var hidden = date < t.ymd || ( 'bank_holiday' === source && ( 'none' === bankMode || ( 'all' !== bankMode && date > bankCutoff ) ) );
+			row.style.display = hidden ? 'none' : '';
+			if ( ! hidden ) {
 				anyVisible = true;
 			}
 		} );
@@ -447,11 +589,14 @@
 		handleDismiss( cfg );
 	}
 
-	// Expose the evaluator so the admin live preview can reuse it verbatim.
+	// Expose the evaluator so the admin customer preview can reuse it verbatim.
 	window.IBOHEval = {
 		siteNow: siteNow,
 		evaluate: evaluate,
 		buildStatus: buildStatus,
+		upcomingEvents: upcomingEvents,
+		formatEvents: formatEvents,
+		formatEventsHtml: formatEventsHtml,
 		fmtTime: fmtTime
 	};
 

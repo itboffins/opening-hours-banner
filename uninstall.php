@@ -2,7 +2,7 @@
 /**
  * Uninstall cleanup: remove the plugin's single option.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 // Exit if not called by WordPress during uninstall.

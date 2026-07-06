@@ -1,19 +1,19 @@
 <?php
 /**
- * Plugin Name:       Opening Hours by IT Boffins
- * Plugin URI:        https://itboffins.com/plugins/opening-hours-banner/
- * Description:       Show your opening hours and a live "We're open / Closed" banner that stays correct even with page caching. No external services, no account — works on any WordPress host.
- * Version:           1.1.0
- * Requires at least: 5.8
+ * Plugin Name:       ITBoffins Live Opening Hours Banner & Table
+ * Plugin URI:        https://itboffins.com/plugins/itboffins-live-opening-hours/
+ * Description:       A live open/closed banner and opening-hours table powered by one private WordPress schedule.
+ * Version:           1.1.12
+ * Requires at least: 6.3
  * Requires PHP:      7.2
  * Author:            IT Boffins
  * Author URI:        https://itboffins.com/
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       opening-hours-banner
+ * Text Domain:       itboffins-live-opening-hours
  * Domain Path:       /languages
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 // Exit if accessed directly.
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'IBOH_VERSION', '1.1.0' );
+define( 'IBOH_VERSION', '1.1.12' );
 define( 'IBOH_FILE', __FILE__ );
 define( 'IBOH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IBOH_URL', plugin_dir_url( __FILE__ ) );
@@ -38,24 +38,23 @@ require_once IBOH_DIR . 'includes/class-iboh-frontend.php';
 require_once IBOH_DIR . 'includes/class-iboh-shortcode.php';
 require_once IBOH_DIR . 'includes/class-iboh-block.php';
 require_once IBOH_DIR . 'includes/class-iboh-admin.php';
-require_once IBOH_DIR . 'includes/class-iboh-ajax.php';
 
 /**
  * Main plugin bootstrap.
  */
-final class IT_Boffins_Opening_Hours {
+final class IBOH_Plugin {
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var IT_Boffins_Opening_Hours|null
+	 * @var IBOH_Plugin|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Get the singleton instance.
 	 *
-	 * @return IT_Boffins_Opening_Hours
+	 * @return IBOH_Plugin
 	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
@@ -75,13 +74,12 @@ final class IT_Boffins_Opening_Hours {
 		add_action( 'init', array( new IBOH_Shortcode(), 'init' ) );
 		add_action( 'init', array( new IBOH_Block(), 'init' ) );
 
-		// Admin UI + AJAX endpoints.
+		// Admin UI.
 		if ( is_admin() ) {
 			( new IBOH_Admin() )->init();
-			( new IBOH_Ajax() )->init();
 		}
 
-		load_plugin_textdomain( 'opening-hours-banner', false, dirname( IBOH_BASENAME ) . '/languages' );
+
 	}
 }
 
@@ -96,4 +94,4 @@ function iboh_activate() {
 register_activation_hook( __FILE__, 'iboh_activate' );
 
 // Go.
-add_action( 'plugins_loaded', array( 'IT_Boffins_Opening_Hours', 'instance' ) );
+add_action( 'plugins_loaded', array( 'IBOH_Plugin', 'instance' ) );

@@ -5,7 +5,7 @@
  * Everything lives in a single option array (IBOH_OPTION) with four top-level
  * groups: schedule, holidays, banner, labels.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -64,12 +64,16 @@ class IBOH_Settings {
 				'weekly_enabled' => 1,
 				// Surface upcoming special dates ahead of time (banner + table),
 				// not just on the day itself. Off keeps the 1.0 behaviour.
-				'show_upcoming'  => 0,
+				'show_upcoming'     => 0,
+				// Bank holidays can stay quieter than manual special dates.
+				'bank_holiday_mode' => 'seven_days',
 			),
 
 			'banner'   => array(
 				'enabled'       => 1,
 				'position'      => 'top',   // 'top' | 'bottom'.
+				'sticky'        => 1,       // Keep visible while scrolling.
+				'push_top'      => 1,       // Top banner takes up its own space.
 				'dismissible'   => 1,
 				'show_next'     => 1,       // Show "Closes at …" / "Opens …" line.
 				'soon_mins'     => 60,      // Within N minutes -> "soon" wording.
@@ -80,20 +84,25 @@ class IBOH_Settings {
 
 			// Editable, translatable display strings (British spelling).
 			'labels'   => array(
-				'open'         => __( "We're open", 'opening-hours-banner' ),
-				'closed'       => __( "Sorry, we're closed", 'opening-hours-banner' ),
-				'closes_at'    => __( 'Closes at %s', 'opening-hours-banner' ),
-				'opens_today'  => __( 'Opens today at %s', 'opening-hours-banner' ),
-				'opens_on'     => __( 'Opens %1$s at %2$s', 'opening-hours-banner' ),
-				'opening_soon' => __( 'Opening soon', 'opening-hours-banner' ),
-				'closing_soon' => __( 'Closing soon', 'opening-hours-banner' ),
-				'open_24h'     => __( 'Open 24 hours', 'opening-hours-banner' ),
+				'open'         => __( "We're open", 'itboffins-live-opening-hours' ),
+				'closed'       => __( "Sorry, we're closed", 'itboffins-live-opening-hours' ),
+				/* translators: %s: closing time. */
+				'closes_at'    => __( 'Closes at %s', 'itboffins-live-opening-hours' ),
+				/* translators: %s: opening time. */
+				'opens_today'  => __( 'Opens today at %s', 'itboffins-live-opening-hours' ),
+				/* translators: %1$s: weekday, %2$s: opening time. */
+				'opens_on'     => __( 'Opens %1$s at %2$s', 'itboffins-live-opening-hours' ),
+				'opening_soon' => __( 'Opening soon', 'itboffins-live-opening-hours' ),
+				'closing_soon' => __( 'Closing soon', 'itboffins-live-opening-hours' ),
+				'open_24h'     => __( 'Open 24 hours', 'itboffins-live-opening-hours' ),
 				/* translators: heading above the list of upcoming special dates. */
-				'upcoming_heading' => __( 'Upcoming dates', 'opening-hours-banner' ),
+				'upcoming_heading' => __( 'Upcoming dates', 'itboffins-live-opening-hours' ),
 				/* translators: %s = date (and optional label), e.g. "Wed 25 Dec (Christmas)". */
-				'upcoming_closed'  => __( 'Closed %s', 'opening-hours-banner' ),
+				'upcoming_closed'      => __( 'Closed %s', 'itboffins-live-opening-hours' ),
+				/* translators: %s = human-readable list of dates, e.g. "Wed 25 Dec and Thu 26 Dec". */
+				'upcoming_closed_list' => __( '%s we are closed', 'itboffins-live-opening-hours' ),
 				/* translators: %1$s = date (and optional label), %2$s = hours, e.g. "Sat 31 Dec: 10:00 – 14:00". */
-				'upcoming_hours'   => __( '%1$s: %2$s', 'opening-hours-banner' ),
+				'upcoming_hours'       => __( '%1$s: %2$s', 'itboffins-live-opening-hours' ),
 			),
 		);
 	}
@@ -191,32 +200,86 @@ class IBOH_Settings {
 		$out['holidays'] = array();
 		$holidays        = isset( $input['holidays'] ) && is_array( $input['holidays'] ) ? $input['holidays'] : array();
 		$count           = 0;
-		foreach ( $holidays as $row ) {
+		$discarded       = 0;
+		foreach ( $holidays as $key => $row ) {
 			if ( $count >= self::MAX_HOLIDAYS ) {
 				break;
 			}
-			if ( ! is_array( $row ) || empty( $row['date'] ) ) {
+			if ( ! is_array( $row ) ) {
 				continue;
 			}
-			$date = self::valid_date( $row['date'] );
+
+			$raw_date = isset( $row['date'] ) ? $row['date'] : '';
+			if ( '' === trim( (string) $raw_date ) && is_string( $key ) ) {
+				$raw_date = $key;
+			}
+			if ( '' === trim( (string) $raw_date ) ) {
+				if ( self::holiday_row_has_content( $row ) ) {
+					$discarded++;
+				}
+				continue;
+			}
+
+			$date = self::valid_date( $raw_date );
 			if ( null === $date ) {
+				$discarded++;
 				continue;
 			}
+
 			$closed = empty( $row['closed'] ) ? 0 : 1;
+			$ranges = $closed ? array() : self::sanitize_ranges( isset( $row['ranges'] ) ? $row['ranges'] : array() );
+			if ( ! $closed && empty( $ranges ) ) {
+				$closed = 1;
+			}
+
+			$source = ( isset( $row['source'] ) && 'bank_holiday' === $row['source'] ) ? 'bank_holiday' : '';
+			if (
+				isset( $out['holidays'][ $date ] )
+				&& 'bank_holiday' === ( isset( $out['holidays'][ $date ]['source'] ) ? $out['holidays'][ $date ]['source'] : '' )
+				&& 'bank_holiday' !== $source
+			) {
+				continue;
+			}
+
 			$out['holidays'][ $date ] = array(
 				'closed' => $closed,
-				'ranges' => $closed ? array() : self::sanitize_ranges( isset( $row['ranges'] ) ? $row['ranges'] : array() ),
+				'ranges' => $closed ? array() : $ranges,
 				'label'  => isset( $row['label'] ) ? sanitize_text_field( $row['label'] ) : '',
 			);
+			if ( 'bank_holiday' === $source ) {
+				$out['holidays'][ $date ]['source'] = 'bank_holiday';
+			}
 			$count++;
 		}
 		ksort( $out['holidays'] );
 
+		if ( $discarded > 0 && function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				IBOH_OPTION,
+				'iboh_holidays_discarded',
+				sprintf(
+					/* translators: %d: number of special dates that were discarded. */
+					_n(
+						'%d special date was not saved because its date was missing or invalid.',
+						'%d special dates were not saved because their dates were missing or invalid.',
+						$discarded,
+						'itboffins-live-opening-hours'
+					),
+					$discarded
+				),
+				'error'
+			);
+		}
+
 		// --- Options --------------------------------------------------------
-		$options                       = isset( $input['options'] ) && is_array( $input['options'] ) ? $input['options'] : array();
-		$out['options']                = array();
+		$options                          = isset( $input['options'] ) && is_array( $input['options'] ) ? $input['options'] : array();
+		$out['options']                   = array();
 		$out['options']['weekly_enabled'] = empty( $options['weekly_enabled'] ) ? 0 : 1;
 		$out['options']['show_upcoming']  = empty( $options['show_upcoming'] ) ? 0 : 1;
+		$bank_holiday_modes              = array( 'seven_days', 'all', 'none' );
+		$out['options']['bank_holiday_mode'] = ( isset( $options['bank_holiday_mode'] ) && in_array( $options['bank_holiday_mode'], $bank_holiday_modes, true ) )
+			? $options['bank_holiday_mode']
+			: $defaults['options']['bank_holiday_mode'];
 
 		// --- Banner ---------------------------------------------------------
 		$banner                  = isset( $input['banner'] ) && is_array( $input['banner'] ) ? $input['banner'] : array();
@@ -225,6 +288,8 @@ class IBOH_Settings {
 		$out['banner']['dismissible'] = empty( $banner['dismissible'] ) ? 0 : 1;
 		$out['banner']['show_next']   = empty( $banner['show_next'] ) ? 0 : 1;
 		$out['banner']['position']    = ( isset( $banner['position'] ) && 'bottom' === $banner['position'] ) ? 'bottom' : 'top';
+		$out['banner']['sticky']      = empty( $banner['sticky'] ) ? 0 : 1;
+		$out['banner']['push_top']    = empty( $banner['push_top'] ) ? 0 : 1;
 		$out['banner']['soon_mins']   = isset( $banner['soon_mins'] ) ? max( 0, min( 720, absint( $banner['soon_mins'] ) ) ) : $defaults['banner']['soon_mins'];
 
 		foreach ( array( 'colour_open', 'colour_closed', 'colour_text' ) as $ck ) {
@@ -241,6 +306,26 @@ class IBOH_Settings {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Check whether a submitted special-date row contains user-entered data.
+	 *
+	 * @param mixed $row Raw special-date row.
+	 * @return bool
+	 */
+	private static function holiday_row_has_content( $row ) {
+		if ( ! is_array( $row ) ) {
+			return false;
+		}
+
+		foreach ( array( 'date', 'label', 'closed' ) as $key ) {
+			if ( isset( $row[ $key ] ) && '' !== trim( (string) $row[ $key ] ) ) {
+				return true;
+			}
+		}
+
+		return ! empty( $row['ranges'] ) && is_array( $row['ranges'] );
 	}
 
 	/**
@@ -266,6 +351,9 @@ class IBOH_Settings {
 			$open  = self::valid_time( isset( $range['open'] ) ? $range['open'] : '' );
 			$close = self::valid_time( isset( $range['close'] ) ? $range['close'] : '' );
 			if ( null === $open || null === $close ) {
+				continue;
+			}
+			if ( '24:00' === $open ) {
 				continue;
 			}
 			// Reject zero-length same-day ranges (open === close), except the

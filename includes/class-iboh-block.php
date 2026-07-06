@@ -1,13 +1,13 @@
 <?php
 /**
- * Server-rendered "Opening Hours" block.
+ * Server-rendered "Live Opening Hours" block.
  *
  * Registered entirely in PHP (no build step). The editor script is hand-written
  * vanilla JS that relies on the WordPress packages already bundled with core
  * (wp.blocks, wp.element, wp.serverSideRender, wp.blockEditor, wp.components).
  * The block delegates rendering to the same code path as the shortcode.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -34,6 +34,10 @@ class IBOH_Block {
 			IBOH_VERSION,
 			true
 		);
+
+		if ( function_exists( 'wp_set_script_translations' ) ) {
+			wp_set_script_translations( 'iboh-editor', 'itboffins-live-opening-hours', IBOH_DIR . 'languages' );
+		}
 
 		register_block_type(
 			'iboh/opening-hours',

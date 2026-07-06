@@ -8,7 +8,7 @@
  * The live status is always derived in the browser, which is what keeps the
  * banner correct under full-page caching.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -37,6 +37,7 @@ class IBOH_Config {
 			'schedule'   => $settings['schedule'],
 			'holidays'   => $settings['holidays'],
 			'options'    => $settings['options'],
+			'closedText' => __( 'Closed', 'itboffins-live-opening-hours' ),
 			'labels'     => $settings['labels'],
 			'banner'     => $settings['banner'],
 		);

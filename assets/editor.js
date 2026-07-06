@@ -1,4 +1,4 @@
-/* Opening Hours by IT Boffins — block editor script.
+/* ITBoffins Live Opening Hours — block editor script.
  *
  * No build step: relies on the WordPress packages bundled with core, referenced
  * via the global `wp` object. The block is server-rendered (ServerSideRender),
@@ -21,11 +21,11 @@
 
 	wp.blocks.registerBlockType( 'iboh/opening-hours', {
 		apiVersion: 2,
-		title: __( 'Opening Hours', 'opening-hours-banner' ),
-		description: __( 'Show your opening hours and live open/closed status.', 'opening-hours-banner' ),
+		title: __( 'Live Opening Hours', 'itboffins-live-opening-hours' ),
+		description: __( 'Show dynamic opening hours and a live open/closed message.', 'itboffins-live-opening-hours' ),
 		icon: 'clock',
 		category: 'widgets',
-		keywords: [ __( 'hours', 'opening-hours-banner' ), __( 'open', 'opening-hours-banner' ), __( 'business', 'opening-hours-banner' ) ],
+		keywords: [ __( 'hours', 'itboffins-live-opening-hours' ), __( 'open', 'itboffins-live-opening-hours' ), __( 'business', 'itboffins-live-opening-hours' ) ],
 		attributes: {
 			show: { type: 'string', 'default': 'table' }
 		},
@@ -39,14 +39,14 @@
 					{ key: 'inspector' },
 					el(
 						PanelBody,
-						{ title: __( 'Display', 'opening-hours-banner' ) },
+						{ title: __( 'Display', 'itboffins-live-opening-hours' ) },
 						el( SelectControl, {
-							label: __( 'Show', 'opening-hours-banner' ),
+							label: __( 'Show', 'itboffins-live-opening-hours' ),
 							value: props.attributes.show,
 							options: [
-								{ label: __( 'Hours table', 'opening-hours-banner' ), value: 'table' },
-								{ label: __( 'Open/closed status', 'opening-hours-banner' ), value: 'status' },
-								{ label: __( 'Both', 'opening-hours-banner' ), value: 'both' }
+								{ label: __( 'Hours table', 'itboffins-live-opening-hours' ), value: 'table' },
+								{ label: __( 'Open or closed message', 'itboffins-live-opening-hours' ), value: 'status' },
+								{ label: __( 'Both', 'itboffins-live-opening-hours' ), value: 'both' }
 							],
 							onChange: function ( value ) {
 								props.setAttributes( { show: value } );

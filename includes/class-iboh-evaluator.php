@@ -7,7 +7,7 @@
  * recomputed in the browser, so a cached copy of this server-rendered markup is
  * still corrected on load. Never treat this output as the authoritative state.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,7 +23,7 @@ class IBOH_Evaluator {
 	 * Compute the current status text.
 	 *
 	 * @param array|null $cfg Optional pre-built config (defaults to IBOH_Config::data()).
-	 * @return array { show: bool, open: bool, main: string, sub: string, upcoming: string }
+	 * @return array { show: bool, open: bool, main: string, sub: string, upcoming: string, upcoming_html: string }
 	 */
 	public static function state( $cfg = null ) {
 		if ( null === $cfg ) {
@@ -80,7 +80,7 @@ class IBOH_Evaluator {
 		}
 
 		$next_open = $open ? null : self::find_next_open( $cfg, $ymd, $dow, $minutes );
-		$upcoming  = $show_upcoming ? self::next_upcoming( $cfg, $ymd ) : null;
+		$upcoming  = $show_upcoming ? self::upcoming_events( $cfg, $ymd ) : array();
 
 		return self::build_status( $cfg, $open, $closes_at, $next_open, $minutes, $today_defined, $upcoming );
 	}
@@ -96,35 +96,51 @@ class IBOH_Evaluator {
 	}
 
 	/**
-	 * The soonest special date strictly after today, or null.
+	 * Special dates strictly after today, sorted by date.
 	 *
 	 * Past dates and today itself are excluded — today's own override already
 	 * drives the live status, so the "upcoming" note always looks ahead.
 	 *
 	 * @param array  $cfg   Config.
 	 * @param string $today Today's date (YYYY-MM-DD).
-	 * @return array|null { date, closed, ranges, label }
+	 * @return array<int,array{date:string,closed:bool,ranges:array,label:string}>
 	 */
-	private static function next_upcoming( $cfg, $today ) {
+	private static function upcoming_events( $cfg, $today ) {
 		if ( empty( $cfg['holidays'] ) || ! is_array( $cfg['holidays'] ) ) {
-			return null;
+			return array();
 		}
-		$dates = array_keys( $cfg['holidays'] );
+		$events      = array();
+		$dates       = array_keys( $cfg['holidays'] );
+		$bank_cutoff = self::shift_ymd( $today, 7 )['ymd'];
+		$bank_mode   = isset( $cfg['options']['bank_holiday_mode'] ) ? (string) $cfg['options']['bank_holiday_mode'] : 'seven_days';
+		if ( ! in_array( $bank_mode, array( 'seven_days', 'all', 'none' ), true ) ) {
+			$bank_mode = 'seven_days';
+		}
 		sort( $dates );
 		foreach ( $dates as $date ) {
 			if ( $date <= $today ) {
 				continue;
 			}
 			$h      = $cfg['holidays'][ $date ];
-			$closed = ! empty( $h['closed'] );
-			return array(
+			$source = isset( $h['source'] ) ? $h['source'] : '';
+			if ( 'bank_holiday' === $source ) {
+				if ( 'none' === $bank_mode ) {
+					continue;
+				}
+				if ( 'all' !== $bank_mode && $date > $bank_cutoff ) {
+					continue;
+				}
+			}
+			$closed   = ! empty( $h['closed'] );
+			$events[] = array(
 				'date'   => $date,
 				'closed' => $closed,
 				'ranges' => $closed ? array() : ( isset( $h['ranges'] ) ? $h['ranges'] : array() ),
 				'label'  => isset( $h['label'] ) ? $h['label'] : '',
+				'source' => $source,
 			);
 		}
-		return null;
+		return $events;
 	}
 
 	/**
@@ -175,27 +191,28 @@ class IBOH_Evaluator {
 	 * @param array|null $next_open     Next opening descriptor.
 	 * @param int        $minutes       Minutes since midnight now.
 	 * @param bool       $today_defined Whether today has a defined status (weekly on, or a special date).
-	 * @param array|null $upcoming      Next upcoming special date, or null.
-	 * @return array { show, open, main, sub, upcoming }
+	 * @param array      $upcoming      Upcoming special dates.
+	 * @return array { show, open, main, sub, upcoming, upcoming_html }
 	 */
 	private static function build_status( $cfg, $open, $closes_at, $next_open, $minutes, $today_defined, $upcoming ) {
 		$labels   = $cfg['labels'];
 		$soon     = (int) $cfg['banner']['soon_mins'];
 		$show     = ! empty( $cfg['banner']['show_next'] );
-		$up_text  = $upcoming ? self::format_event( $cfg, $upcoming ) : '';
+		$up_text  = ! empty( $upcoming ) ? self::format_events( $cfg, $upcoming ) : '';
+		$up_html  = ! empty( $upcoming ) ? self::format_events_html( $cfg, $upcoming ) : '';
 
 		if ( $open ) {
 			$main = $labels['open'];
 			$sub  = '';
 			if ( null !== $closes_at ) {
 				if ( $show ) {
-					$sub = sprintf( $labels['closes_at'], self::fmt_time( $closes_at ) );
+					$sub = self::format_label( $labels['closes_at'], array( self::fmt_time( $closes_at ) ) );
 				}
 				if ( $soon > 0 && ( $closes_at - $minutes ) <= $soon ) {
 					$main = $labels['closing_soon'];
 				}
 			}
-			return array( 'show' => true, 'open' => true, 'main' => $main, 'sub' => $sub, 'upcoming' => $up_text );
+			return array( 'show' => true, 'open' => true, 'main' => $main, 'sub' => $sub, 'upcoming' => $up_text, 'upcoming_html' => $up_html );
 		}
 
 		// Closed, but today has a defined status (regular weekly day, or a
@@ -207,27 +224,160 @@ class IBOH_Evaluator {
 				$time = self::fmt_time( $next_open['minute'] );
 				if ( $show ) {
 					if ( 0 === $next_open['dayOffset'] ) {
-						$sub = sprintf( $labels['opens_today'], $time );
+						$sub = self::format_label( $labels['opens_today'], array( $time ) );
 					} else {
-						$sub = sprintf( $labels['opens_on'], self::day_name( $cfg, $next_open['dow'] ), $time );
+						$sub = self::format_label( $labels['opens_on'], array( self::day_name( $cfg, $next_open['dow'] ), $time ) );
 					}
 				}
 				if ( $soon > 0 && 0 === $next_open['dayOffset'] && ( $next_open['minute'] - $minutes ) <= $soon ) {
 					$main = $labels['opening_soon'];
 				}
 			}
-			return array( 'show' => true, 'open' => false, 'main' => $main, 'sub' => $sub, 'upcoming' => $up_text );
+			return array( 'show' => true, 'open' => false, 'main' => $main, 'sub' => $sub, 'upcoming' => $up_text, 'upcoming_html' => $up_html );
 		}
 
 		// Weekly hours are off and today has no special date. If there is an
 		// upcoming date to announce, the banner becomes that announcement;
 		// otherwise there is nothing to show, so hide it entirely.
-		if ( $upcoming ) {
-			$announce_open = empty( $upcoming['closed'] ) && ! empty( $upcoming['ranges'] );
-			return array( 'show' => true, 'open' => $announce_open, 'main' => $up_text, 'sub' => '', 'upcoming' => '' );
+		if ( ! empty( $upcoming ) ) {
+			$first         = reset( $upcoming );
+			$announce_open = 1 === count( $upcoming ) && empty( $first['closed'] ) && ! empty( $first['ranges'] );
+			return array( 'show' => true, 'open' => $announce_open, 'main' => $up_text, 'sub' => '', 'upcoming' => '', 'upcoming_html' => '' );
 		}
 
-		return array( 'show' => false, 'open' => false, 'main' => '', 'sub' => '', 'upcoming' => '' );
+		return array( 'show' => false, 'open' => false, 'main' => '', 'sub' => '', 'upcoming' => '', 'upcoming_html' => '' );
+	}
+
+	/**
+	 * Human one-line summary for multiple upcoming special dates.
+	 *
+	 * @param array $cfg    Config.
+	 * @param array $events Upcoming events.
+	 * @return string
+	 */
+	private static function format_events( $cfg, $events ) {
+		if ( empty( $events ) ) {
+			return '';
+		}
+
+		$parts        = array();
+		$closed_dates = array();
+		foreach ( $events as $event ) {
+			if ( ! empty( $event['closed'] ) || empty( $event['ranges'] ) ) {
+				$closed_dates[] = self::event_date_label( $event );
+				continue;
+			}
+
+			if ( $closed_dates ) {
+				$parts[]      = self::format_closed_dates( $cfg, $closed_dates );
+				$closed_dates = array();
+			}
+			$parts[] = self::format_event( $cfg, $event );
+		}
+
+		if ( $closed_dates ) {
+			$parts[] = self::format_closed_dates( $cfg, $closed_dates );
+		}
+
+		return implode( ' · ', array_filter( $parts ) );
+	}
+
+	/**
+	 * Structured markup for upcoming dates: bold date, normal-weight detail.
+	 *
+	 * @param array $cfg    Config.
+	 * @param array $events Upcoming events.
+	 * @return string
+	 */
+	private static function format_events_html( $cfg, $events ) {
+		if ( empty( $events ) ) {
+			return '';
+		}
+
+		$items = array();
+		foreach ( $events as $event ) {
+			$items[] = self::format_event_html( $cfg, $event );
+		}
+
+		return implode( '', array_filter( $items ) );
+	}
+
+	/**
+	 * Mark up one upcoming date.
+	 *
+	 * @param array $cfg Config.
+	 * @param array $ev  Event.
+	 * @return string
+	 */
+	private static function format_event_html( $cfg, $ev ) {
+		$parts = self::event_parts( $cfg, $ev );
+		return '<span class="iboh-upcoming-item"><strong class="iboh-upcoming-date">' . esc_html( $parts['date'] ) . '</strong><span class="iboh-upcoming-detail">' . esc_html( $parts['detail'] ) . '</span></span>';
+	}
+
+	/**
+	 * Split an event into display date and display detail.
+	 *
+	 * @param array $cfg Config.
+	 * @param array $ev  Event.
+	 * @return array{date:string,detail:string}
+	 */
+	private static function event_parts( $cfg, $ev ) {
+		$detail = ( ! empty( $ev['closed'] ) || empty( $ev['ranges'] ) )
+			? __( 'Closed', 'itboffins-live-opening-hours' )
+			: self::fmt_ranges( $cfg, $ev['ranges'] );
+
+		return array(
+			'date'   => self::event_date_label( $ev ),
+			'detail' => $detail,
+		);
+	}
+
+	/**
+	 * Format a special date plus optional label.
+	 *
+	 * @param array $event Event { date, label }.
+	 * @return string
+	 */
+	private static function event_date_label( $event ) {
+		$date_text = self::fmt_date( $event['date'] );
+		$label     = isset( $event['label'] ) ? $event['label'] : '';
+		return ( '' !== $label ) ? $date_text . ' (' . $label . ')' : $date_text;
+	}
+
+	/**
+	 * Format one or more closed dates.
+	 *
+	 * @param array $cfg          Config.
+	 * @param array $closed_dates Formatted date labels.
+	 * @return string
+	 */
+	private static function format_closed_dates( $cfg, $closed_dates ) {
+		$labels = $cfg['labels'];
+		if ( 1 === count( $closed_dates ) ) {
+			return self::format_label( $labels['upcoming_closed'], array( $closed_dates[0] ) );
+		}
+
+		$template = isset( $labels['upcoming_closed_list'] ) ? $labels['upcoming_closed_list'] : '%s we are closed';
+		return self::format_label( $template, array( self::human_list( $closed_dates ) ) );
+	}
+
+	/**
+	 * Join date labels with a final "and".
+	 *
+	 * @param array $items Labels.
+	 * @return string
+	 */
+	private static function human_list( $items ) {
+		$count = count( $items );
+		if ( $count <= 1 ) {
+			return isset( $items[0] ) ? $items[0] : '';
+		}
+		if ( 2 === $count ) {
+			return $items[0] . ' and ' . $items[1];
+		}
+
+		$last = array_pop( $items );
+		return implode( ', ', $items ) . ', and ' . $last;
 	}
 
 	/**
@@ -244,9 +394,9 @@ class IBOH_Evaluator {
 		$date_label = ( '' !== $label ) ? $date_text . ' (' . $label . ')' : $date_text;
 
 		if ( ! empty( $ev['closed'] ) || empty( $ev['ranges'] ) ) {
-			return sprintf( $labels['upcoming_closed'], $date_label );
+			return self::format_label( $labels['upcoming_closed'], array( $date_label ) );
 		}
-		return sprintf( $labels['upcoming_hours'], $date_label, self::fmt_ranges( $cfg, $ev['ranges'] ) );
+		return self::format_label( $labels['upcoming_hours'], array( $date_label, self::fmt_ranges( $cfg, $ev['ranges'] ) ) );
 	}
 
 	/**
@@ -357,6 +507,42 @@ class IBOH_Evaluator {
 		return wp_date( (string) get_option( 'time_format', 'H:i' ), $ts );
 	}
 
+	/**
+	 * Replace supported label placeholders without PHP sprintf fatal/warning risk.
+	 *
+	 * Admin-editable labels may contain stray percent signs or unsupported
+	 * placeholders. Only %s and positional %1$s-style string placeholders are
+	 * replaced; everything else remains literal text.
+	 *
+	 * @param string $template Label template.
+	 * @param array  $args     Replacement values.
+	 * @return string
+	 */
+	private static function format_label( $template, $args ) {
+		$template = (string) $template;
+		$args     = array_values( (array) $args );
+		$index    = 0;
+		$result   = preg_replace_callback(
+			'/%(\\d+)\\$s|%s/',
+			function ( $matches ) use ( $args, &$index ) {
+				if ( ! empty( $matches[1] ) ) {
+					$position = (int) $matches[1] - 1;
+					return isset( $args[ $position ] ) ? (string) $args[ $position ] : '';
+				}
+
+				$value = isset( $args[ $index ] ) ? (string) $args[ $index ] : '';
+				$index++;
+				return $value;
+			},
+			$template
+		);
+
+		if ( ! is_string( $result ) ) {
+			return $template;
+		}
+
+		return str_replace( '%%', '%', $result );
+	}
 	/**
 	 * Localised weekday name for an index.
 	 *

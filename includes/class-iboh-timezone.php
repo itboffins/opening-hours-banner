@@ -3,7 +3,7 @@
  * Timezone helpers — the single source of truth for "what time is it on the
  * site" used by both the PHP fallback and the JavaScript evaluator.
  *
- * @package Opening_Hours_Banner
+ * @package ITBoffins_Live_Opening_Hours
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
