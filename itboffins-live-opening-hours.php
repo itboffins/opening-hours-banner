@@ -67,8 +67,10 @@ final class IBOH_Plugin {
 	 * Wire up the plugin.
 	 */
 	private function __construct() {
-		// Front-end banner + asset delivery.
-		( new IBOH_Frontend() )->init();
+		// Front-end banner + asset delivery. Hooked to init (not run at
+		// plugins_loaded) because it reads settings whose defaults are
+		// translated — gettext before init triggers a notice on WP 6.7+.
+		add_action( 'init', array( new IBOH_Frontend(), 'init' ) );
 
 		// Shortcode and block (both safe to register everywhere).
 		add_action( 'init', array( new IBOH_Shortcode(), 'init' ) );

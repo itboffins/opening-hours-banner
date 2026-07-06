@@ -87,6 +87,7 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 * Review: the no-JavaScript banner fallback styling moved from an inline `<style>` tag into the enqueued stylesheet, gated by a small enqueued head script.
 * Review: the shortcode is now `[iboh_opening_hours]` and the bootstrap class is `IBOH_Plugin`, so every public name carries the plugin prefix.
 * Removed an unused legacy placeholder file.
+* Fix: front-end bootstrap now runs at `init`, so translated defaults no longer trigger the WordPress 6.7+ early-textdomain notice.
 
 = 1.1.11 =
 * Branding: submission title and short description now emphasise the linked live banner and opening-hours table USP.
