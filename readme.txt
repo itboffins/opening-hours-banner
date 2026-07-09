@@ -4,7 +4,7 @@ Tags: opening hours, business hours, store hours, open closed, live status
 Requires at least: 6.3
 Tested up to: 7.0
 Requires PHP: 7.2
-Stable tag: 1.1.12
+Stable tag: 1.1.13
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,7 @@ The opening-hours table and live banner both work from the same schedule you sav
 * **Upcoming changes.** Tell customers about future closures or special hours before the day arrives.
 * **Separate bank-holiday notices.** Show bank holidays only within 7 days, show all future bank holidays, or keep them out of upcoming notices while manual special dates stay visible.
 * **Cleaner notice layout.** Multiple upcoming dates wrap as separate date/time items, with the date in bold and the hours in normal weight.
+* **Automatic cleanup.** Past special dates drop out of the admin list, preview, banner data, and the hours table.
 * **Special-dates-only mode.** Turn your regular week off entirely for pop-ups, events, or by-appointment businesses.
 * **Works with fast/cached sites.** The page hours and live banner stay fresh even when WordPress or your host caches the page.
 * **Uses your WordPress timezone.** Handles daylight saving automatically.
@@ -82,6 +83,9 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 3. The dynamic opening-hours table from the block or shortcode.
 
 == Changelog ==
+
+= 1.1.13 =
+* New: past special dates are now automatically removed from saved/admin opening-hours data while today's date remains active.
 
 = 1.1.12 =
 * Review: the no-JavaScript banner fallback styling moved from an inline `<style>` tag into the enqueued stylesheet, gated by a small enqueued head script.
@@ -138,6 +142,9 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 * Initial release: weekly schedule editor, split hours, holidays/special dates, customer notice bar, hours table block, and shortcode.
 
 == Upgrade Notice ==
+
+= 1.1.13 =
+Past special dates are cleaned out automatically, keeping the one-off changes list current.
 
 = 1.1.12 =
 WordPress.org review fixes: proper style enqueueing and prefixed shortcode/class names. The shortcode is now [iboh_opening_hours].

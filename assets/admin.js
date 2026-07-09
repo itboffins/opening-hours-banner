@@ -163,6 +163,16 @@
 		return y + '-' + m + '-' + d;
 	}
 
+	function siteTodayYmd() {
+		if ( window.IBOHEval && window.IBOHEval.siteNow ) {
+			return window.IBOHEval.siteNow( {
+				tz: window.IBOH ? window.IBOH.tz : '',
+				offset: window.IBOH ? window.IBOH.offset : 0
+			} ).ymd;
+		}
+		return ymdFromDate( new Date() );
+	}
+
 	function isWeekday( date ) {
 		var day = date.getUTCDay();
 		return day > 0 && day < 6;
@@ -334,12 +344,16 @@
 		var status = document.getElementById( 'iboh-bank-holiday-status' );
 		var region = regionSelect ? regionSelect.value : 'england-wales';
 		var year = yearSelect ? parseInt( yearSelect.value, 10 ) : new Date().getFullYear();
+		var today = siteTodayYmd();
 		var existing = existingHolidayRows();
 		var added = 0;
 		var replaced = 0;
 		var skipped = 0;
 
 		standardBankHolidays( year, region ).forEach( function ( holiday ) {
+			if ( holiday.date < today ) {
+				return;
+			}
 			if ( existing[ holiday.date ] ) {
 				if ( 'bank_holiday' === existing[ holiday.date ].source ) {
 					skipped += 1;
@@ -452,6 +466,7 @@
 
 	function normaliseHolidayRowsForSubmit( event ) {
 		var firstInvalid = null;
+		var today = siteTodayYmd();
 
 		document.querySelectorAll( '[data-iboh-holiday]' ).forEach( function ( row ) {
 			ensureHolidayRowNames( row );
@@ -465,6 +480,11 @@
 						firstInvalid = dateInput;
 					}
 				}
+			}
+
+			if ( dateInput && dateInput.value && dateInput.value < today ) {
+				row.remove();
+				return;
 			}
 
 			var closedToggle = row.querySelector( '.iboh-closed-toggle' );
@@ -503,10 +523,11 @@
 			cfg.schedule[ dow ] = readDay( row );
 		} );
 
+		var today = siteTodayYmd();
 		document.querySelectorAll( '[data-iboh-holiday]' ).forEach( function ( row ) {
 			var dateInput = row.querySelector( 'input[type="date"]' );
 			var date = dateInput ? dateInput.value : '';
-			if ( ! date ) {
+			if ( ! date || date < today ) {
 				return;
 			}
 			var labelInput = row.querySelector( '.iboh-holiday-label' );

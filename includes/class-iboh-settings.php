@@ -138,8 +138,9 @@ class IBOH_Settings {
 		}
 		$out['schedule'] = $schedule;
 
-		// Holidays: keep as-is if it is an array, else reset.
-		$out['holidays'] = ( isset( $saved['holidays'] ) && is_array( $saved['holidays'] ) ) ? $saved['holidays'] : array();
+		// Holidays: keep today and future dates only.
+		$saved_holidays  = ( isset( $saved['holidays'] ) && is_array( $saved['holidays'] ) ) ? $saved['holidays'] : array();
+		$out['holidays'] = self::current_holidays( $saved_holidays );
 
 		// Options + banner + labels: deep-merge over defaults.
 		$out['options'] = wp_parse_args(
@@ -199,6 +200,7 @@ class IBOH_Settings {
 		// --- Holidays / special dates ---------------------------------------
 		$out['holidays'] = array();
 		$holidays        = isset( $input['holidays'] ) && is_array( $input['holidays'] ) ? $input['holidays'] : array();
+		$today           = self::today_date();
 		$count           = 0;
 		$discarded       = 0;
 		foreach ( $holidays as $key => $row ) {
@@ -223,6 +225,9 @@ class IBOH_Settings {
 			$date = self::valid_date( $raw_date );
 			if ( null === $date ) {
 				$discarded++;
+				continue;
+			}
+			if ( $date < $today ) {
 				continue;
 			}
 
@@ -306,6 +311,39 @@ class IBOH_Settings {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Remove special dates that are now in the past.
+	 *
+	 * @param array $holidays Holiday rows keyed by YYYY-MM-DD.
+	 * @return array
+	 */
+	private static function current_holidays( $holidays ) {
+		if ( ! is_array( $holidays ) ) {
+			return array();
+		}
+
+		$today = self::today_date();
+		$out   = array();
+		foreach ( $holidays as $date => $holiday ) {
+			if ( ! is_string( $date ) || null === self::valid_date( $date ) || $date < $today || ! is_array( $holiday ) ) {
+				continue;
+			}
+			$out[ $date ] = $holiday;
+		}
+		ksort( $out );
+
+		return $out;
+	}
+
+	/**
+	 * Today's date in the site's WordPress timezone.
+	 *
+	 * @return string YYYY-MM-DD.
+	 */
+	private static function today_date() {
+		return wp_date( 'Y-m-d' );
 	}
 
 	/**

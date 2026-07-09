@@ -23,6 +23,7 @@ The main USP is that both the opening-hours table and the notice bar stay live f
 - **Separate bank-holiday notice controls** to show bank holidays within 7 days, all future bank holidays, or no bank holidays in upcoming notices.
 - **Upcoming changes** so customers can see future closures or special hours in advance.
 - **Cleaner notice layout** with upcoming dates and times shown as separate, wrapped date/detail items.
+- **Automatic cleanup** so past special dates drop out of the admin list and public schedule data.
 - **Special-dates-only mode** for pop-ups, events, seasonal venues, and appointment-led businesses.
 - **Timezone-aware** using the site's WordPress timezone, including daylight saving changes.
 - **Overnight hours** for late-night venues, such as 22:00-02:00.
