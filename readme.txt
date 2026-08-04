@@ -4,11 +4,11 @@ Tags: opening hours, business hours, store hours, open closed, live status
 Requires at least: 6.3
 Tested up to: 7.0
 Requires PHP: 7.2
-Stable tag: 1.1.13
+Stable tag: 1.1.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-A live open/closed banner and opening-hours table powered by one private WordPress schedule.
+A live open/closed banner and opening-hours table powered by one locally stored WordPress schedule.
 
 == Description ==
 
@@ -23,17 +23,17 @@ The opening-hours table and live banner both work from the same schedule you sav
 * **Live open/closed banner.** Tell customers if you are open, closed, opening soon, or closing soon.
 * **Flexible banner layout.** Keep the notice sticky or let it scroll away, and choose whether a top notice makes room or sits over the page.
 * **Easy weekly hours.** Set your regular week with simple time pickers, lunch breaks, and one-click weekday copying.
-* **Holidays & one-off changes.** Add bank holidays, Christmas closures, early finishes, special Saturdays, or appointment-only dates.
+* **Public special dates & one-off changes.** Add bank holidays, Christmas closures, early finishes, special Saturdays, or appointment-only dates.
 * **UK bank-holiday helper.** Add the standard England & Wales, Scotland, or Northern Ireland bank holidays as closed dates for the year.
 * **Upcoming changes.** Tell customers about future closures or special hours before the day arrives.
 * **Separate bank-holiday notices.** Show bank holidays only within 7 days, show all future bank holidays, or keep them out of upcoming notices while manual special dates stay visible.
 * **Cleaner notice layout.** Multiple upcoming dates wrap as separate date/time items, with the date in bold and the hours in normal weight.
-* **Automatic cleanup.** Past special dates drop out of the admin list, preview, banner data, and the hours table.
+* **Automatic cleanup.** Expired special dates drop out after any overnight opening has finished.
 * **Special-dates-only mode.** Turn your regular week off entirely for pop-ups, events, or by-appointment businesses.
 * **Works with fast/cached sites.** The page hours and live banner stay fresh even when WordPress or your host caches the page.
 * **Uses your WordPress timezone.** Handles daylight saving automatically.
 * **Overnight hours.** Late-night venues are handled, such as 22:00-02:00.
-* **Genuinely free & private.** No external API, no account, no tracking, and nothing sent off-site.
+* **Genuinely free & self-hosted.** No external API, no account, no tracking, and nothing sent off-site.
 
 == Installation ==
 
@@ -53,8 +53,11 @@ Yes. If your site uses caching to stay fast, the opening-hours table and open/cl
 = Which timezone is used? =
 Your site's WordPress timezone (Settings -> General). If you use a named timezone, such as Europe/London, daylight saving is handled automatically.
 
+= Does it use my WordPress time format? =
+Yes. Displayed hours support the wall-clock tokens `G`, `H`, `g`, `h`, `i`, `s`, `a`, and `A`, plus backslash-escaped literals. Other PHP date-format characters remain literal because a saved opening time is not a complete timestamp from which timezone- or instant-dependent tokens can be calculated reliably.
+
 = Can I quickly add bank holidays? =
-Yes. In **Live Opening Hours**, use the bank-holiday helper inside *Holidays & one-off changes*. Choose England & Wales, Scotland, or Northern Ireland, pick the year, and add the standard dates as closed special dates. One-off public holidays can still be added manually.
+Yes. In **Live Opening Hours**, use the bank-holiday helper inside *Public special dates & one-off changes*. Choose England & Wales, Scotland, or Northern Ireland, pick the year, and add the standard dates as closed special dates. One-off public holidays can still be added manually.
 
 = Can I set a lunch break or split hours? =
 Yes. Add more than one time range to a day, for example 09:00-12:00 and 13:00-17:00.
@@ -66,11 +69,11 @@ Yes. Set a closing time earlier than the opening time, for example 22:00-02:00.
 Use the *Live Opening Hours* block in the editor, or paste one of these shortcodes into a page: `[iboh_opening_hours show="table"]`, `[iboh_opening_hours show="status"]`, or `[iboh_opening_hours show="both"]`.
 
 = Does it send any data anywhere? =
-No. There is no external API and no tracking. Everything runs on your own site.
+No. There is no external API and no tracking. Everything runs on your own site. To keep cached pages current, the saved hours, dates, labels, and public notes are included in the page data and evaluated in each visitor's browser. Do not put confidential information in a schedule note.
 
 == Privacy ==
 
-ITBoffins Live Opening Hours Banner & Table stores the schedule and notice-bar settings in your WordPress database. It does not connect to external services, set tracking cookies, or send visitor data off-site. If a customer closes the notice bar, that preference is remembered only in their browser.
+ITBoffins Live Opening Hours Banner & Table stores the schedule and notice-bar settings in your WordPress database. It includes the saved hours, dates, labels, and public notes in public page data so each visitor's browser can keep cached pages current. It does not connect to external services, set tracking cookies, or send visitor data off-site. Do not enter confidential information in a schedule note. If a customer closes the notice bar, that preference is remembered only in their browser.
 
 == License ==
 
@@ -83,6 +86,18 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 3. The dynamic opening-hours table from the block or shortcode.
 
 == Changelog ==
+
+= 1.1.15 =
+* Accessibility: dynamically added time ranges keep specific weekday/date and range-number labels, and the notice-bar dismiss control now has a 44-by-44-pixel touch target.
+* Admin: saving settings now shows WordPress's standard success confirmation.
+
+= 1.1.14 =
+* Fix: continuous, overlapping, overnight, and 24-hour ranges now use the true end of the uninterrupted opening period.
+* Fix: special-date overrides and overnight tails remain correct across midnight, including daylight-saving transitions.
+* Fix: next openings and special-only schedules work beyond seven days and respect upcoming-notice settings.
+* Fix: custom upcoming wording, common WordPress time-format tokens (G, H, g, h, i, s, a, and A), escaped literals, localized lists, and live banner dismissal transitions are honoured in the browser.
+* Accessibility: improved live-status announcements, schedule-editor labels, and keyboard focus handling.
+* Hardening: validates UI limits, normalizes malformed stored ranges, avoids freezing translated defaults, cleans multisite data on uninstall, and adds regression tests.
 
 = 1.1.13 =
 * New: past special dates are now automatically removed from saved/admin opening-hours data while today's date remains active.
@@ -142,6 +157,12 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 * Initial release: weekly schedule editor, split hours, holidays/special dates, customer notice bar, hours table block, and shortcode.
 
 == Upgrade Notice ==
+
+= 1.1.15 =
+Improves save feedback and fixes accessibility details found during live desktop and mobile verification.
+
+= 1.1.14 =
+Corrects boundary, overnight, special-date, formatting, accessibility, and editor integration issues found during a full code review.
 
 = 1.1.13 =
 Past special dates are cleaned out automatically, keeping the one-off changes list current.

@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       ITBoffins Live Opening Hours Banner & Table
  * Plugin URI:        https://itboffins.com/plugins/itboffins-live-opening-hours/
- * Description:       A live open/closed banner and opening-hours table powered by one private WordPress schedule.
- * Version:           1.1.13
+ * Description:       A live open/closed banner and opening-hours table powered by one locally stored WordPress schedule.
+ * Version:           1.1.15
  * Requires at least: 6.3
  * Requires PHP:      7.2
  * Author:            IT Boffins
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'IBOH_VERSION', '1.1.13' );
+define( 'IBOH_VERSION', '1.1.15' );
 define( 'IBOH_FILE', __FILE__ );
 define( 'IBOH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IBOH_URL', plugin_dir_url( __FILE__ ) );
@@ -67,6 +67,11 @@ final class IBOH_Plugin {
 	 * Wire up the plugin.
 	 */
 	private function __construct() {
+		// Upgrade old options that stored translated defaults as custom labels.
+		// Run at init so plugin translations can be loaded without early-gettext
+		// notices on current WordPress releases.
+		add_action( 'init', array( 'IBOH_Settings', 'maybe_migrate_labels' ), 1 );
+
 		// Front-end banner + asset delivery. Hooked to init (not run at
 		// plugins_loaded) because it reads settings whose defaults are
 		// translated — gettext before init triggers a notice on WP 6.7+.
@@ -90,7 +95,9 @@ final class IBOH_Plugin {
  */
 function iboh_activate() {
 	if ( false === get_option( IBOH_OPTION ) ) {
-		add_option( IBOH_OPTION, IBOH_Settings::defaults() );
+		// Store only explicit overrides. Runtime defaults are translated for the
+		// active locale by IBOH_Settings::all().
+		add_option( IBOH_OPTION, array( IBOH_Settings::LABEL_OVERRIDE_MARKER => 1 ) );
 	}
 }
 register_activation_hook( __FILE__, 'iboh_activate' );

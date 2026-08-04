@@ -107,21 +107,56 @@ class IBOH_Admin {
 			)
 		);
 
+		$format_config  = IBOH_Config::data();
+		$default_labels = IBOH_Settings::defaults()['labels'];
+		$yesterday      = IBOH_Timezone::now()->modify( '-1 day' )->format( 'Y-m-d' );
+		$preview_carry = array();
+		if ( isset( $format_config['holidays'][ $yesterday ] ) ) {
+			// The form intentionally omits past dates, but yesterday's complete
+			// override still controls any post-midnight tail in the live preview.
+			$preview_carry[ $yesterday ] = $format_config['holidays'][ $yesterday ];
+		}
 		wp_localize_script(
 			'iboh-admin',
 			'IBOH',
 			array(
 				'tz'         => IBOH_Timezone::iana(),
 				'offset'     => IBOH_Timezone::offset_minutes(),
-				'timeFormat' => (string) get_option( 'time_format', 'H:i' ),
-				'lang'       => str_replace( '_', '-', get_locale() ),
+				'timeFormat' => $format_config['timeFormat'],
+				'meridiem'   => $format_config['meridiem'],
+				'list'       => $format_config['list'],
+				'lang'       => $format_config['lang'],
+				'dateNames'  => $format_config['dateNames'],
 				'dayNames'   => IBOH_Config::day_names(),
 				'closedText' => __( 'Closed', 'itboffins-live-opening-hours' ),
-				'optionName' => IBOH_OPTION,
-				'i18n'       => array(
+				'defaultLabels' => $default_labels,
+				'optionName'    => IBOH_OPTION,
+				'maxRanges'     => IBOH_Settings::MAX_RANGES,
+				'maxHolidays'   => IBOH_Settings::MAX_HOLIDAYS,
+				'previewCarry'  => $preview_carry,
+				'i18n'          => array(
 					'remove'              => __( 'Remove', 'itboffins-live-opening-hours' ),
 					'hidden'              => __( 'Nothing to show today', 'itboffins-live-opening-hours' ),
 					'missingDate'         => __( 'Pick a date, or remove this row.', 'itboffins-live-opening-hours' ),
+					/* translators: %d: maximum number of time ranges. */
+					'rangeLimit'          => sprintf( __( 'You can add up to %d time ranges here.', 'itboffins-live-opening-hours' ), IBOH_Settings::MAX_RANGES ),
+					/* translators: %1$d: range number, %2$s: weekday or public special date. */
+					'rangeGroupLabel'     => __( 'Time range %1$d for %2$s', 'itboffins-live-opening-hours' ),
+					/* translators: %1$s: weekday or public special date, %2$d: range number. */
+					'rangeOpenLabel'      => __( 'Opening time for %1$s, range %2$d', 'itboffins-live-opening-hours' ),
+					/* translators: %1$s: weekday or public special date, %2$d: range number. */
+					'rangeCloseLabel'     => __( 'Closing time for %1$s, range %2$d', 'itboffins-live-opening-hours' ),
+					/* translators: %1$d: range number, %2$s: weekday or public special date. */
+					'rangeRemoveLabel'    => __( 'Remove time range %1$d for %2$s', 'itboffins-live-opening-hours' ),
+					/* translators: %s: public special-date description. */
+					'timeRangesForContext' => __( 'Time ranges for %s', 'itboffins-live-opening-hours' ),
+					/* translators: %s: public special date in YYYY-MM-DD format. */
+					'publicSpecialDateContext' => __( 'public special date %s', 'itboffins-live-opening-hours' ),
+					'newPublicSpecialDateContext' => __( 'New public special date', 'itboffins-live-opening-hours' ),
+					/* translators: %d: maximum number of public special dates. */
+					'holidayLimit'        => sprintf( __( 'You can add up to %d public special dates.', 'itboffins-live-opening-hours' ), IBOH_Settings::MAX_HOLIDAYS ),
+					'limitReached'        => __( 'Limit reached.', 'itboffins-live-opening-hours' ),
+					'holidayLimitReached' => __( 'The public special-date limit has been reached. Remove a date before adding another.', 'itboffins-live-opening-hours' ),
 					/* translators: %1$d: number of dates added, %2$d: number of existing dates replaced, %3$d: number of dates already in the list. */
 					'bankHolidaysAdded'   => __( 'Added: %1$d. Replaced existing dates: %2$d. Already in your list: %3$d. Save changes when you are happy.', 'itboffins-live-opening-hours' ),
 					'bankHolidaysNone'    => __( 'Those bank holidays are already in your list.', 'itboffins-live-opening-hours' ),
@@ -159,17 +194,25 @@ class IBOH_Admin {
 		$options  = $settings['options'];
 		$days     = IBOH_Config::day_names();
 		$order    = array( 1, 2, 3, 4, 5, 6, 0 ); // Display Monday..Sunday.
-		$year_now = (int) wp_date( 'Y' );
+		$year_now         = (int) wp_date( 'Y' );
+		$today            = IBOH_Timezone::now()->format( 'Y-m-d' );
+		$public_date_count = 0;
+		foreach ( array_keys( $settings['holidays'] ) as $special_date ) {
+			if ( $special_date >= $today ) {
+				$public_date_count++;
+			}
+		}
+		$public_date_limit_reached = $public_date_count >= IBOH_Settings::MAX_HOLIDAYS;
 		?>
 		<div class="wrap iboh-wrap">
 			<?php $this->brand_header(); ?>
 			<h1><?php esc_html_e( 'Live Opening Hours', 'itboffins-live-opening-hours' ); ?></h1>
 			<p class="iboh-intro"><?php esc_html_e( 'Tell customers when you are open, closed, or taking a day off - without making them hunt for it.', 'itboffins-live-opening-hours' ); ?></p>
-			<?php settings_errors( IBOH_OPTION ); ?>
+			<?php settings_errors(); ?>
 
 			<div class="iboh-card iboh-preview-card">
 				<span class="iboh-eyebrow"><?php esc_html_e( 'Customer preview', 'itboffins-live-opening-hours' ); ?></span>
-				<div class="iboh-preview" id="iboh-preview">
+				<div class="iboh-preview" id="iboh-preview" role="status" aria-live="polite" aria-atomic="true">
 					<span class="iboh-dot" aria-hidden="true"></span>
 					<span class="iboh-preview-main" data-iboh-main>—</span>
 					<span class="iboh-preview-sub" data-iboh-sub></span>
@@ -184,6 +227,7 @@ class IBOH_Admin {
 				<div class="iboh-card">
 					<h2><?php esc_html_e( 'Your regular week', 'itboffins-live-opening-hours' ); ?></h2>
 					<p class="description"><?php esc_html_e( 'Set the hours you usually keep. Add another row for a lunch break, evening shift, or late-night opening.', 'itboffins-live-opening-hours' ); ?></p>
+					<p class="description iboh-public-warning"><strong><?php esc_html_e( 'Public information:', 'itboffins-live-opening-hours' ); ?></strong> <?php esc_html_e( 'These hours are published on your site. Do not include confidential information.', 'itboffins-live-opening-hours' ); ?></p>
 
 					<p class="iboh-weekly-toggle">
 						<label>
@@ -204,11 +248,12 @@ class IBOH_Admin {
 				</div>
 
 				<div class="iboh-card">
-					<h2><?php esc_html_e( 'Holidays & one-off changes', 'itboffins-live-opening-hours' ); ?></h2>
-					<p class="description"><?php esc_html_e( 'Add bank holidays, Christmas closures, early finishes, special Saturdays, or any date that does not follow your normal week.', 'itboffins-live-opening-hours' ); ?></p>
+					<h2 id="iboh-special-dates-heading"><?php esc_html_e( 'Public special dates & one-off changes', 'itboffins-live-opening-hours' ); ?></h2>
+					<p class="description"><?php esc_html_e( 'Publish bank holidays, Christmas closures, early finishes, special Saturdays, or any date that does not follow your normal week.', 'itboffins-live-opening-hours' ); ?></p>
+					<p class="description iboh-public-warning"><strong><?php esc_html_e( 'Public information:', 'itboffins-live-opening-hours' ); ?></strong> <?php esc_html_e( 'Dates, hours, and notes in this section are public and may be shown to visitors. Do not include confidential information.', 'itboffins-live-opening-hours' ); ?></p>
 
 					<fieldset class="iboh-upcoming-mode">
-						<legend><?php esc_html_e( 'Special date notices', 'itboffins-live-opening-hours' ); ?></legend>
+						<legend><?php esc_html_e( 'Public special-date notices', 'itboffins-live-opening-hours' ); ?></legend>
 						<label>
 							<input type="radio" data-iboh-option="show_upcoming" name="<?php echo esc_attr( IBOH_OPTION ); ?>[options][show_upcoming]" value="0" <?php checked( empty( $options['show_upcoming'] ) ); ?> />
 							<?php esc_html_e( 'Only mention a change on the day', 'itboffins-live-opening-hours' ); ?>
@@ -220,7 +265,7 @@ class IBOH_Admin {
 					</fieldset>
 
 					<fieldset class="iboh-upcoming-mode">
-						<legend><?php esc_html_e( 'Bank holiday notices', 'itboffins-live-opening-hours' ); ?></legend>
+						<legend><?php esc_html_e( 'Public bank-holiday notices', 'itboffins-live-opening-hours' ); ?></legend>
 						<label>
 							<input type="radio" data-iboh-option="bank_holiday_mode" name="<?php echo esc_attr( IBOH_OPTION ); ?>[options][bank_holiday_mode]" value="seven_days" <?php checked( isset( $options['bank_holiday_mode'] ) ? $options['bank_holiday_mode'] : 'seven_days', 'seven_days' ); ?> />
 							<?php esc_html_e( 'Show bank holidays only when they are within 7 days', 'itboffins-live-opening-hours' ); ?>
@@ -238,7 +283,7 @@ class IBOH_Admin {
 					<div class="iboh-bank-holidays">
 						<div>
 							<strong><?php esc_html_e( 'Closed on bank holidays?', 'itboffins-live-opening-hours' ); ?></strong>
-							<p class="description"><?php esc_html_e( 'Add the usual UK bank holidays as closed special dates. Choose your part of the UK and the year, then save.', 'itboffins-live-opening-hours' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Add the usual UK bank holidays as public closed dates. Choose your part of the UK and the year, then save.', 'itboffins-live-opening-hours' ); ?></p>
 							<p class="description"><?php esc_html_e( 'One-off public holidays are not added automatically, so add those separately if you need them.', 'itboffins-live-opening-hours' ); ?></p>
 						</div>
 						<div class="iboh-bank-holiday-actions">
@@ -258,12 +303,12 @@ class IBOH_Admin {
 									<?php endfor; ?>
 								</select>
 							</label>
-							<button type="button" class="button" id="iboh-add-bank-holidays"><?php esc_html_e( 'Add closed bank holidays', 'itboffins-live-opening-hours' ); ?></button>
+							<button type="button" class="button" id="iboh-add-bank-holidays" aria-describedby="iboh-holiday-limit" <?php disabled( $public_date_limit_reached ); ?>><?php esc_html_e( 'Add public closed bank holidays', 'itboffins-live-opening-hours' ); ?></button>
 						</div>
 						<p class="description iboh-bank-holiday-status" id="iboh-bank-holiday-status" aria-live="polite"></p>
 					</div>
 
-					<div class="iboh-holidays" id="iboh-holidays">
+					<div class="iboh-holidays" id="iboh-holidays" role="group" aria-labelledby="iboh-special-dates-heading">
 						<?php
 						$i = 0;
 						foreach ( $settings['holidays'] as $date => $holiday ) {
@@ -272,7 +317,18 @@ class IBOH_Admin {
 						}
 						?>
 					</div>
-					<p><button type="button" class="button" id="iboh-add-holiday"><?php esc_html_e( 'Add a special date', 'itboffins-live-opening-hours' ); ?></button></p>
+					<p>
+						<button type="button" class="button" id="iboh-add-holiday" aria-describedby="iboh-holiday-limit" <?php disabled( $public_date_limit_reached ); ?>><?php esc_html_e( 'Add a public special date', 'itboffins-live-opening-hours' ); ?></button>
+						<span class="description iboh-limit-note" id="iboh-holiday-limit" aria-live="polite">
+							<?php
+							printf(
+								/* translators: %d: maximum number of public special dates. */
+								esc_html__( 'You can add up to %d public special dates.', 'itboffins-live-opening-hours' ),
+								(int) IBOH_Settings::MAX_HOLIDAYS
+							);
+							?>
+						</span>
+					</p>
 				</div>
 
 				<div class="iboh-card">
@@ -355,7 +411,8 @@ class IBOH_Admin {
 
 				<div class="iboh-card">
 					<h2><?php esc_html_e( 'Your wording', 'itboffins-live-opening-hours' ); ?></h2>
-					<p class="description"><?php esc_html_e( 'Make the messages sound like your business. Keep any placeholders shown in the field help.', 'itboffins-live-opening-hours' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Make the public messages sound like your business. Keep any placeholders shown in the field help.', 'itboffins-live-opening-hours' ); ?></p>
+					<p class="description iboh-public-warning"><strong><?php esc_html_e( 'Public information:', 'itboffins-live-opening-hours' ); ?></strong> <?php esc_html_e( 'This wording is published on your site. Do not include confidential information.', 'itboffins-live-opening-hours' ); ?></p>
 					<table class="form-table" role="presentation">
 						<?php
 						$label_help = array(
@@ -414,24 +471,37 @@ class IBOH_Admin {
 	private function render_day_row( $dow, $day, $name ) {
 		$ranges_name = IBOH_OPTION . '[schedule][' . $dow . '][ranges]';
 		$is_closed   = ! empty( $day['closed'] );
+		$day_id      = 'iboh-day-' . $dow;
+		$range_limit = count( $day['ranges'] ) >= IBOH_Settings::MAX_RANGES;
+		/* translators: %s: weekday name. */
+		$ranges_label = sprintf( __( 'Time ranges for %s', 'itboffins-live-opening-hours' ), $name );
 		?>
-		<div class="iboh-day-row" data-iboh-day data-dow="<?php echo esc_attr( $dow ); ?>">
-			<div class="iboh-day-name"><?php echo esc_html( $name ); ?></div>
+		<div class="iboh-day-row" data-iboh-day data-dow="<?php echo esc_attr( $dow ); ?>" role="group" aria-labelledby="<?php echo esc_attr( $day_id . '-name' ); ?>">
+			<div class="iboh-day-name" id="<?php echo esc_attr( $day_id . '-name' ); ?>"><?php echo esc_html( $name ); ?></div>
 			<label class="iboh-day-toggle">
 				<input type="checkbox" class="iboh-closed-toggle" name="<?php echo esc_attr( IBOH_OPTION ); ?>[schedule][<?php echo esc_attr( $dow ); ?>][closed]" value="1" <?php checked( $is_closed ); ?> />
 				<?php esc_html_e( 'Closed', 'itboffins-live-opening-hours' ); ?>
 			</label>
 			<div class="iboh-day-body" <?php echo $is_closed ? 'style="display:none;"' : ''; ?>>
-				<div class="iboh-ranges" data-name="<?php echo esc_attr( $ranges_name ); ?>">
+				<div class="iboh-ranges" data-name="<?php echo esc_attr( $ranges_name ); ?>" role="group" aria-label="<?php echo esc_attr( $ranges_label ); ?>">
 					<?php
 					$i = 0;
 					foreach ( $day['ranges'] as $range ) {
-						$this->render_range_row( $ranges_name . '[' . $i . ']', $range );
+						$this->render_range_row( $ranges_name . '[' . $i . ']', $range, $name, $i + 1 );
 						$i++;
 					}
 					?>
 				</div>
-				<button type="button" class="button-link iboh-add-range"><?php esc_html_e( '+ Add another time', 'itboffins-live-opening-hours' ); ?></button>
+				<button type="button" class="button-link iboh-add-range" aria-describedby="<?php echo esc_attr( $day_id . '-range-limit' ); ?>" <?php disabled( $range_limit ); ?>><?php esc_html_e( '+ Add another time', 'itboffins-live-opening-hours' ); ?></button>
+				<span class="description iboh-limit-note" id="<?php echo esc_attr( $day_id . '-range-limit' ); ?>" aria-live="polite">
+					<?php
+					printf(
+						/* translators: %d: maximum number of time ranges. */
+						esc_html__( 'You can add up to %d time ranges here.', 'itboffins-live-opening-hours' ),
+						(int) IBOH_Settings::MAX_RANGES
+					);
+					?>
+				</span>
 			</div>
 		</div>
 		<?php
@@ -440,24 +510,34 @@ class IBOH_Admin {
 	/**
 	 * Render a single open/close range row.
 	 *
-	 * @param string $name_prefix Full name prefix, e.g. "...[ranges][0]".
-	 * @param array  $range       { open, close }.
+	 * @param string $name_prefix  Full name prefix, e.g. "...[ranges][0]".
+	 * @param array  $range        { open, close }.
+	 * @param string $context      Human-readable day/date context.
+	 * @param int    $range_number One-based range number.
 	 */
-	private function render_range_row( $name_prefix, $range ) {
+	private function render_range_row( $name_prefix, $range, $context, $range_number ) {
 		$open          = isset( $range['open'] ) ? $range['open'] : '';
 		$close         = isset( $range['close'] ) ? $range['close'] : '';
 		$is_24h        = ( '00:00' === $open && '24:00' === $close );
 		$display_open  = $is_24h ? '00:00' : $open;
 		$display_close = $is_24h ? '23:59' : $close;
+		/* translators: %1$d: range number, %2$s: weekday or public special date. */
+		$group_label  = sprintf( __( 'Time range %1$d for %2$s', 'itboffins-live-opening-hours' ), $range_number, $context );
+		/* translators: %1$s: weekday or public special date, %2$d: range number. */
+		$open_label   = sprintf( __( 'Opening time for %1$s, range %2$d', 'itboffins-live-opening-hours' ), $context, $range_number );
+		/* translators: %1$s: weekday or public special date, %2$d: range number. */
+		$close_label  = sprintf( __( 'Closing time for %1$s, range %2$d', 'itboffins-live-opening-hours' ), $context, $range_number );
+		/* translators: %1$d: range number, %2$s: weekday or public special date. */
+		$remove_label = sprintf( __( 'Remove time range %1$d for %2$s', 'itboffins-live-opening-hours' ), $range_number, $context );
 		?>
-		<div class="iboh-range">
+		<div class="iboh-range" role="group" aria-label="<?php echo esc_attr( $group_label ); ?>">
 			<input type="hidden" data-iboh-24h-open name="<?php echo esc_attr( $name_prefix ); ?>[open]" value="00:00" <?php disabled( ! $is_24h ); ?> />
 			<input type="hidden" data-iboh-24h-close name="<?php echo esc_attr( $name_prefix ); ?>[close]" value="24:00" <?php disabled( ! $is_24h ); ?> />
-			<input type="time" data-iboh-time-open name="<?php echo esc_attr( $name_prefix ); ?>[open]" value="<?php echo esc_attr( $display_open ); ?>" <?php disabled( $is_24h ); ?> />
+			<input type="time" data-iboh-time-open name="<?php echo esc_attr( $name_prefix ); ?>[open]" value="<?php echo esc_attr( $display_open ); ?>" aria-label="<?php echo esc_attr( $open_label ); ?>" <?php disabled( $is_24h ); ?> />
 			<span class="iboh-range-sep">&ndash;</span>
-			<input type="time" data-iboh-time-close name="<?php echo esc_attr( $name_prefix ); ?>[close]" value="<?php echo esc_attr( $display_close ); ?>" <?php disabled( $is_24h ); ?> />
+			<input type="time" data-iboh-time-close name="<?php echo esc_attr( $name_prefix ); ?>[close]" value="<?php echo esc_attr( $display_close ); ?>" aria-label="<?php echo esc_attr( $close_label ); ?>" <?php disabled( $is_24h ); ?> />
 			<label class="iboh-range-24h"><input type="checkbox" class="iboh-24h-toggle" <?php checked( $is_24h ); ?> /> <?php esc_html_e( 'Open 24 hours', 'itboffins-live-opening-hours' ); ?></label>
-			<button type="button" class="button-link iboh-remove-range"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
+			<button type="button" class="button-link iboh-remove-range" aria-label="<?php echo esc_attr( $remove_label ); ?>"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
 		</div>
 		<?php
 	}
@@ -474,30 +554,45 @@ class IBOH_Admin {
 		$ranges_name = $base . '[ranges]';
 		$is_closed   = ! empty( $holiday['closed'] );
 		$source      = ( isset( $holiday['source'] ) && 'bank_holiday' === $holiday['source'] ) ? 'bank_holiday' : '';
+		$range_limit = isset( $holiday['ranges'] ) && is_array( $holiday['ranges'] ) && count( $holiday['ranges'] ) >= IBOH_Settings::MAX_RANGES;
+		/* translators: %s: public special date in YYYY-MM-DD format. */
+		$context        = sprintf( __( 'public special date %s', 'itboffins-live-opening-hours' ), $date );
+		/* translators: %s: public special-date description. */
+		$ranges_label   = sprintf( __( 'Time ranges for %s', 'itboffins-live-opening-hours' ), $context );
+		$range_limit_id = 'iboh-holiday-' . $i . '-range-limit';
 		?>
-		<div class="iboh-holiday" data-iboh-holiday>
+		<div class="iboh-holiday" data-iboh-holiday role="group" aria-label="<?php echo esc_attr( $context ); ?>">
 			<div class="iboh-holiday-top">
 				<input type="hidden" class="iboh-holiday-source" name="<?php echo esc_attr( $base ); ?>[source]" value="<?php echo esc_attr( $source ); ?>" />
-				<input type="date" name="<?php echo esc_attr( $base ); ?>[date]" value="<?php echo esc_attr( $date ); ?>" required />
-				<input type="text" class="regular-text iboh-holiday-label" name="<?php echo esc_attr( $base ); ?>[label]" value="<?php echo esc_attr( isset( $holiday['label'] ) ? $holiday['label'] : '' ); ?>" placeholder="<?php esc_attr_e( 'Note (optional)', 'itboffins-live-opening-hours' ); ?>" />
+				<input type="date" name="<?php echo esc_attr( $base ); ?>[date]" value="<?php echo esc_attr( $date ); ?>" aria-label="<?php esc_attr_e( 'Public special date', 'itboffins-live-opening-hours' ); ?>" required />
+				<input type="text" class="regular-text iboh-holiday-label" name="<?php echo esc_attr( $base ); ?>[label]" value="<?php echo esc_attr( isset( $holiday['label'] ) ? $holiday['label'] : '' ); ?>" aria-label="<?php esc_attr_e( 'Public note (optional)', 'itboffins-live-opening-hours' ); ?>" placeholder="<?php esc_attr_e( 'Public note (optional)', 'itboffins-live-opening-hours' ); ?>" />
 				<label class="iboh-day-toggle">
 					<input type="checkbox" class="iboh-closed-toggle" name="<?php echo esc_attr( $base ); ?>[closed]" value="1" <?php checked( $is_closed ); ?> />
 					<?php esc_html_e( 'Closed', 'itboffins-live-opening-hours' ); ?>
 				</label>
-				<button type="button" class="button-link iboh-remove-holiday"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
+				<button type="button" class="button-link iboh-remove-holiday" aria-label="<?php esc_attr_e( 'Remove this public special date', 'itboffins-live-opening-hours' ); ?>"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
 			</div>
 			<div class="iboh-day-body" <?php echo $is_closed ? 'style="display:none;"' : ''; ?>>
-				<div class="iboh-ranges" data-name="<?php echo esc_attr( $ranges_name ); ?>">
+				<div class="iboh-ranges" data-name="<?php echo esc_attr( $ranges_name ); ?>" role="group" aria-label="<?php echo esc_attr( $ranges_label ); ?>">
 					<?php
 					$j      = 0;
 					$ranges = isset( $holiday['ranges'] ) && is_array( $holiday['ranges'] ) ? $holiday['ranges'] : array();
 					foreach ( $ranges as $range ) {
-						$this->render_range_row( $ranges_name . '[' . $j . ']', $range );
+						$this->render_range_row( $ranges_name . '[' . $j . ']', $range, $context, $j + 1 );
 						$j++;
 					}
 					?>
 				</div>
-				<button type="button" class="button-link iboh-add-range"><?php esc_html_e( '+ Add another time', 'itboffins-live-opening-hours' ); ?></button>
+				<button type="button" class="button-link iboh-add-range" aria-describedby="<?php echo esc_attr( $range_limit_id ); ?>" <?php disabled( $range_limit ); ?>><?php esc_html_e( '+ Add another time', 'itboffins-live-opening-hours' ); ?></button>
+				<span class="description iboh-limit-note" id="<?php echo esc_attr( $range_limit_id ); ?>" aria-live="polite">
+					<?php
+					printf(
+						/* translators: %d: maximum number of time ranges. */
+						esc_html__( 'You can add up to %d time ranges here.', 'itboffins-live-opening-hours' ),
+						(int) IBOH_Settings::MAX_RANGES
+					);
+					?>
+				</span>
 			</div>
 		</div>
 		<?php
@@ -509,32 +604,33 @@ class IBOH_Admin {
 	private function render_templates() {
 		?>
 		<template id="iboh-range-tpl">
-			<div class="iboh-range">
+			<div class="iboh-range" role="group" aria-label="<?php esc_attr_e( 'Time range', 'itboffins-live-opening-hours' ); ?>">
 				<input type="hidden" data-field="open" data-iboh-24h-open value="00:00" disabled />
 				<input type="hidden" data-field="close" data-iboh-24h-close value="24:00" disabled />
-				<input type="time" data-field="open" data-iboh-time-open />
+				<input type="time" data-field="open" data-iboh-time-open aria-label="<?php esc_attr_e( 'Opening time', 'itboffins-live-opening-hours' ); ?>" />
 				<span class="iboh-range-sep">&ndash;</span>
-				<input type="time" data-field="close" data-iboh-time-close />
+				<input type="time" data-field="close" data-iboh-time-close aria-label="<?php esc_attr_e( 'Closing time', 'itboffins-live-opening-hours' ); ?>" />
 				<label class="iboh-range-24h"><input type="checkbox" class="iboh-24h-toggle" /> <?php esc_html_e( 'Open 24 hours', 'itboffins-live-opening-hours' ); ?></label>
-				<button type="button" class="button-link iboh-remove-range"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
+				<button type="button" class="button-link iboh-remove-range" aria-label="<?php esc_attr_e( 'Remove this time range', 'itboffins-live-opening-hours' ); ?>"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
 			</div>
 		</template>
 
 		<template id="iboh-holiday-tpl">
-			<div class="iboh-holiday" data-iboh-holiday>
+			<div class="iboh-holiday" data-iboh-holiday role="group" aria-label="<?php esc_attr_e( 'New public special date', 'itboffins-live-opening-hours' ); ?>">
 				<div class="iboh-holiday-top">
 					<input type="hidden" class="iboh-holiday-source" data-field="source" value="" />
-					<input type="date" data-field="date" required />
-					<input type="text" class="regular-text iboh-holiday-label" data-field="label" placeholder="<?php esc_attr_e( 'Note (optional)', 'itboffins-live-opening-hours' ); ?>" />
+					<input type="date" data-field="date" aria-label="<?php esc_attr_e( 'Public special date', 'itboffins-live-opening-hours' ); ?>" required />
+					<input type="text" class="regular-text iboh-holiday-label" data-field="label" aria-label="<?php esc_attr_e( 'Public note (optional)', 'itboffins-live-opening-hours' ); ?>" placeholder="<?php esc_attr_e( 'Public note (optional)', 'itboffins-live-opening-hours' ); ?>" />
 					<label class="iboh-day-toggle">
 						<input type="checkbox" class="iboh-closed-toggle" data-field="closed" value="1" checked />
 						<?php esc_html_e( 'Closed', 'itboffins-live-opening-hours' ); ?>
 					</label>
-					<button type="button" class="button-link iboh-remove-holiday"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
+					<button type="button" class="button-link iboh-remove-holiday" aria-label="<?php esc_attr_e( 'Remove this public special date', 'itboffins-live-opening-hours' ); ?>"><?php esc_html_e( 'Remove', 'itboffins-live-opening-hours' ); ?></button>
 				</div>
 				<div class="iboh-day-body" style="display:none;">
-					<div class="iboh-ranges" data-iboh-ranges></div>
+					<div class="iboh-ranges" data-iboh-ranges role="group" aria-label="<?php esc_attr_e( 'Time ranges for this public special date', 'itboffins-live-opening-hours' ); ?>"></div>
 					<button type="button" class="button-link iboh-add-range"><?php esc_html_e( '+ Add another time', 'itboffins-live-opening-hours' ); ?></button>
+					<span class="description iboh-limit-note" data-iboh-range-limit-note aria-live="polite"></span>
 				</div>
 			</div>
 		</template>

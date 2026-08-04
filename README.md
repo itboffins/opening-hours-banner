@@ -1,6 +1,6 @@
 # ITBoffins Live Opening Hours Banner & Table
 
-Show a dynamic opening-hours table and a friendly **We're open / Sorry, we're closed** banner from the same private WordPress schedule. It is free, private, and works on ordinary WordPress hosting.
+Show a dynamic opening-hours table and a friendly **We're open / Sorry, we're closed** banner from the same locally stored WordPress schedule. It is free, self-hosted, and works on ordinary WordPress hosting.
 
 > **Note on this repository.** This plugin is fully self-contained and is intended to live in its own repository (`itboffins/itboffins-live-opening-hours`). It was scaffolded alongside *Local Image Optimiser* for convenience; the `itboffins-live-opening-hours/` folder can be moved into a standalone repo as-is.
 
@@ -23,7 +23,7 @@ The main USP is that both the opening-hours table and the notice bar stay live f
 - **Separate bank-holiday notice controls** to show bank holidays within 7 days, all future bank holidays, or no bank holidays in upcoming notices.
 - **Upcoming changes** so customers can see future closures or special hours in advance.
 - **Cleaner notice layout** with upcoming dates and times shown as separate, wrapped date/detail items.
-- **Automatic cleanup** so past special dates drop out of the admin list and public schedule data.
+- **Automatic cleanup** so expired special dates drop out after any overnight opening has finished.
 - **Special-dates-only mode** for pop-ups, events, seasonal venues, and appointment-led businesses.
 - **Timezone-aware** using the site's WordPress timezone, including daylight saving changes.
 - **Overnight hours** for late-night venues, such as 22:00-02:00.
@@ -31,9 +31,19 @@ The main USP is that both the opening-hours table and the notice bar stay live f
 - **Theme-friendly typography** so public banner and table text inherit the site's body/content font.
 - **No accounts or tracking**. No external API, no API keys, and nothing sent off-site.
 
+The schedule is evaluated in each visitor's browser so cached pages stay current. Its
+hours, dates, labels, and public notes are therefore included in the page data. Do not
+put confidential information in a schedule note.
+
 ## How it stays fresh on fast sites
 
 When the public page loads, the browser uses the saved schedule to decide what customers should see. It checks again every 30 seconds and when a visitor returns to the tab, so the message can change without a page reload. The site timezone is used, so daylight saving follows the WordPress settings. A PHP fallback keeps the page sensible if JavaScript is unavailable.
+
+Displayed hours follow the WordPress time format for the wall-clock tokens `G`, `H`,
+`g`, `h`, `i`, `s`, `a`, and `A`, including backslash-escaped literals. Other PHP
+date-format characters remain literal because a saved opening time is a wall time,
+not a complete timestamp from which timezone- or instant-dependent tokens can be
+calculated reliably.
 
 ## Usage
 
@@ -62,7 +72,15 @@ assets/
 
 ## Development
 
-Plain PHP WordPress plugin: no build step, no Composer, no npm. Targets the [WordPress Coding Standards](https://github.com/WordPress/WordPress-Coding-Standards).
+Plain PHP WordPress plugin: no build step, Composer, or npm install is required. Targets
+the [WordPress Coding Standards](https://github.com/WordPress/WordPress-Coding-Standards).
+
+Regression checks use the PHP and Node.js runtimes directly:
+
+```text
+php tests/php-regression.php
+node --test tests/frontend-evaluator.test.js
+```
 
 ## License
 

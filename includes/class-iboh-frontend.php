@@ -27,7 +27,8 @@ class IBOH_Frontend {
 	public function init() {
 		add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
 
-		$banner = IBOH_Settings::get( 'banner' );
+		$config = IBOH_Config::data();
+		$banner = $config['banner'];
 		if ( empty( $banner['enabled'] ) ) {
 			return;
 		}
@@ -92,7 +93,8 @@ class IBOH_Frontend {
 			return;
 		}
 
-		$banner = IBOH_Settings::get( 'banner' );
+		$config = IBOH_Config::data();
+		$banner = $config['banner'];
 		if ( empty( $banner['enabled'] ) ) {
 			return;
 		}
@@ -100,8 +102,9 @@ class IBOH_Frontend {
 		$this->banner_rendered = true;
 		self::enqueue();
 
-		$state = IBOH_Evaluator::state();
+		$state = IBOH_Evaluator::state( $config );
 		$pos   = ( 'bottom' === $banner['position'] ) ? 'bottom' : 'top';
+		$footer_fallback = ( 'top' === $pos && doing_action( 'wp_footer' ) ) ? '1' : '0';
 		$layout_class = empty( $banner['sticky'] ) ? 'iboh-not-sticky' : 'iboh-sticky';
 		if ( 'top' === $pos ) {
 			$layout_class .= empty( $banner['push_top'] ) ? ' iboh-overlay-top' : ' iboh-push-top';
@@ -120,36 +123,29 @@ class IBOH_Frontend {
 			$style .= 'display:none;';
 		}
 
-		// A signature so a dismissed banner re-appears when schedule, wording,
-		// styling, or the current fallback message changes.
+		// Stable configuration signature. The browser combines this with its
+		// freshly evaluated state, so a cached dismissed banner reappears when
+		// the live message changes.
 		$sig = substr(
 			md5(
-				wp_json_encode(
-					array(
-						'banner'   => $banner,
-						'labels'   => IBOH_Settings::get( 'labels' ),
-						'options'  => IBOH_Settings::get( 'options' ),
-						'schedule' => IBOH_Settings::get( 'schedule' ),
-						'holidays' => IBOH_Settings::get( 'holidays' ),
-						'state'    => $state,
-					)
-				)
+				(string) wp_json_encode( $config )
 			),
 			0,
 			8
 		);
 
 		printf(
-			'<div class="iboh-banner iboh-loading iboh-pos-%1$s %2$s %3$s" data-iboh-banner data-iboh-dismissible="%4$s" data-iboh-sig="%5$s" aria-busy="true" style="%6$s">',
+			'<div class="iboh-banner iboh-loading iboh-pos-%1$s %2$s %3$s" data-iboh-banner data-iboh-dismissible="%4$s" data-iboh-config-sig="%5$s" data-iboh-sig="%5$s" data-iboh-footer-fallback="%6$s" style="%7$s">',
 			esc_attr( $pos ),
 			esc_attr( $layout_class ),
 			esc_attr( $state_class ),
 			esc_attr( empty( $banner['dismissible'] ) ? '0' : '1' ),
 			esc_attr( $sig ),
+			esc_attr( $footer_fallback ),
 			esc_attr( safecss_filter_attr( $style ) )
 		);
 
-		echo '<div class="iboh-banner-inner">';
+		echo '<div class="iboh-banner-inner" role="status" aria-live="polite" aria-atomic="true">';
 		echo '<span class="iboh-banner-skeleton" aria-hidden="true"><span class="iboh-skeleton-main"></span><span class="iboh-skeleton-sub"></span></span>';
 		echo '<span class="iboh-dot" aria-hidden="true"></span>';
 		echo '<span class="iboh-banner-main" data-iboh-main>' . esc_html( $state['main'] ) . '</span>';

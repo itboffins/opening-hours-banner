@@ -23,9 +23,30 @@ class IBOH_Settings {
 	const MAX_RANGES = 6;
 
 	/**
-	 * Maximum number of stored holiday/special-date entries.
+	 * Maximum number of current/future public special dates. The previous date's
+	 * temporary evaluator carry is deliberately outside this limit.
 	 */
 	const MAX_HOLIDAYS = 200;
+
+	/**
+	 * Option marker: stored label values are explicit sparse overrides.
+	 */
+	const LABEL_OVERRIDE_MARKER = '_labels_are_overrides';
+
+	/**
+	 * Request-local normalized settings, keyed by blog, locale, date, raw option,
+	 * and whether yesterday's special date is required by the live evaluator.
+	 *
+	 * @var array<string,array>
+	 */
+	private static $cache = array();
+
+	/**
+	 * Candidate locale-specific default label maps, collected once per request.
+	 *
+	 * @var array<int,array<string,string>>|null
+	 */
+	private static $legacy_label_defaults = null;
 
 	/**
 	 * Default settings.
@@ -108,55 +129,150 @@ class IBOH_Settings {
 	}
 
 	/**
+	 * Convert legacy, fully populated label storage into marked sparse overrides.
+	 *
+	 * Older releases saved the translated defaults alongside genuine custom
+	 * wording. On upgrade, infer one coherent default set from the source,
+	 * current, and installed locales so a later locale switch can use its own
+	 * translations. Ambiguous cross-locale values remain custom wording.
+	 *
+	 * @return void
+	 */
+	public static function maybe_migrate_labels() {
+		$saved = get_option( IBOH_OPTION, array() );
+		if ( ! is_array( $saved ) || ! empty( $saved[ self::LABEL_OVERRIDE_MARKER ] ) ) {
+			return;
+		}
+
+		$defaults     = self::defaults();
+		$saved_labels = isset( $saved['labels'] ) && is_array( $saved['labels'] ) ? $saved['labels'] : array();
+		$legacy_keys  = self::legacy_default_keys( $saved_labels );
+		$overrides    = array();
+		foreach ( array_keys( $defaults['labels'] ) as $key ) {
+			if ( ! isset( $saved_labels[ $key ] ) || ! is_scalar( $saved_labels[ $key ] ) ) {
+				continue;
+			}
+			$value = sanitize_text_field( (string) $saved_labels[ $key ] );
+			if ( '' !== $value && ! isset( $legacy_keys[ $key ] ) ) {
+				$overrides[ $key ] = $value;
+			}
+		}
+
+		$saved['labels'] = $overrides;
+		$saved[ self::LABEL_OVERRIDE_MARKER ] = 1;
+		update_option( IBOH_OPTION, $saved );
+		self::$cache = array();
+	}
+
+	/**
 	 * Get the full settings array, merged over defaults.
 	 *
 	 * wp_parse_args() is shallow, so the nested groups are each merged
 	 * explicitly. This keeps the structure complete (and forward-compatible:
 	 * sub-keys added in future versions inherit their defaults automatically).
 	 *
+	 * @param bool $include_yesterday Include yesterday's complete special-date
+	 *                                override when needed by live evaluation.
 	 * @return array
 	 */
-	public static function all() {
+	public static function all( $include_yesterday = false ) {
 		$defaults = self::defaults();
 		$saved    = get_option( IBOH_OPTION, array() );
 		if ( ! is_array( $saved ) ) {
 			$saved = array();
 		}
 
+		$blog_id     = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$locale      = function_exists( 'determine_locale' ) ? determine_locale() : get_locale();
+		$fingerprint = md5( maybe_serialize( $saved ) );
+		$cache_key   = implode(
+			'|',
+			array(
+				(string) $blog_id,
+				(string) $locale,
+				self::today_date(),
+				$include_yesterday ? 'with-yesterday' : 'current',
+				$fingerprint,
+			)
+		);
+		if ( isset( self::$cache[ $cache_key ] ) ) {
+			return self::$cache[ $cache_key ];
+		}
+
 		$out = wp_parse_args( $saved, $defaults );
 
-		// Schedule: guarantee all seven weekdays with a complete shape.
-		$schedule = array();
+		// Schedule: guarantee seven normalized weekdays. An open day without a
+		// valid range is closed, rather than an ambiguous empty/open state.
+		$saved_schedule = ( isset( $saved['schedule'] ) && is_array( $saved['schedule'] ) ) ? $saved['schedule'] : array();
+		$schedule       = array();
 		foreach ( $defaults['schedule'] as $dow => $default_day ) {
-			$day = isset( $saved['schedule'][ $dow ] ) && is_array( $saved['schedule'][ $dow ] )
-				? $saved['schedule'][ $dow ]
-				: array();
+			$day = isset( $saved_schedule[ $dow ] ) && is_array( $saved_schedule[ $dow ] )
+				? $saved_schedule[ $dow ]
+				: $default_day;
+			$closed = empty( $day['closed'] ) ? 0 : 1;
+			$ranges = $closed ? array() : self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array() );
+			if ( ! $closed && empty( $ranges ) ) {
+				$closed = 1;
+			}
 			$schedule[ $dow ] = array(
-				'closed' => empty( $day['closed'] ) ? 0 : 1,
-				'ranges' => isset( $day['ranges'] ) && is_array( $day['ranges'] ) ? array_values( $day['ranges'] ) : array(),
+				'closed' => $closed,
+				'ranges' => $closed ? array() : $ranges,
 			);
 		}
 		$out['schedule'] = $schedule;
 
-		// Holidays: keep today and future dates only.
+		// Admin/table callers get today and future dates. The live evaluator can
+		// request yesterday too, so its complete override remains authoritative
+		// during any possible overnight tail.
 		$saved_holidays  = ( isset( $saved['holidays'] ) && is_array( $saved['holidays'] ) ) ? $saved['holidays'] : array();
-		$out['holidays'] = self::current_holidays( $saved_holidays );
+		$out['holidays'] = self::current_holidays( $saved_holidays, $include_yesterday );
 
-		// Options + banner + labels: deep-merge over defaults.
-		$out['options'] = wp_parse_args(
-			( isset( $saved['options'] ) && is_array( $saved['options'] ) ) ? $saved['options'] : array(),
-			$defaults['options']
-		);
-		$out['banner'] = wp_parse_args(
-			( isset( $saved['banner'] ) && is_array( $saved['banner'] ) ) ? $saved['banner'] : array(),
-			$defaults['banner']
-		);
-		$out['labels'] = wp_parse_args(
-			( isset( $saved['labels'] ) && is_array( $saved['labels'] ) ) ? $saved['labels'] : array(),
-			$defaults['labels']
+		// Options + banner: deep-merge over defaults and normalize defensively in
+		// case an old or externally modified option bypassed sanitize().
+		$options = ( isset( $saved['options'] ) && is_array( $saved['options'] ) ) ? $saved['options'] : array();
+		$out['options'] = array(
+			'weekly_enabled'   => isset( $options['weekly_enabled'] ) ? ( empty( $options['weekly_enabled'] ) ? 0 : 1 ) : $defaults['options']['weekly_enabled'],
+			'show_upcoming'    => isset( $options['show_upcoming'] ) ? ( empty( $options['show_upcoming'] ) ? 0 : 1 ) : $defaults['options']['show_upcoming'],
+			'bank_holiday_mode' => isset( $options['bank_holiday_mode'] ) && in_array( $options['bank_holiday_mode'], array( 'seven_days', 'all', 'none' ), true )
+				? $options['bank_holiday_mode']
+				: $defaults['options']['bank_holiday_mode'],
 		);
 
-		return $out;
+		$banner = ( isset( $saved['banner'] ) && is_array( $saved['banner'] ) ) ? $saved['banner'] : array();
+		$out['banner'] = array(
+			'enabled'       => isset( $banner['enabled'] ) ? ( empty( $banner['enabled'] ) ? 0 : 1 ) : $defaults['banner']['enabled'],
+			'position'      => isset( $banner['position'] ) && is_scalar( $banner['position'] ) && in_array( $banner['position'], array( 'top', 'bottom' ), true ) ? $banner['position'] : $defaults['banner']['position'],
+			'sticky'        => isset( $banner['sticky'] ) ? ( empty( $banner['sticky'] ) ? 0 : 1 ) : $defaults['banner']['sticky'],
+			'push_top'      => isset( $banner['push_top'] ) ? ( empty( $banner['push_top'] ) ? 0 : 1 ) : $defaults['banner']['push_top'],
+			'dismissible'   => isset( $banner['dismissible'] ) ? ( empty( $banner['dismissible'] ) ? 0 : 1 ) : $defaults['banner']['dismissible'],
+			'show_next'     => isset( $banner['show_next'] ) ? ( empty( $banner['show_next'] ) ? 0 : 1 ) : $defaults['banner']['show_next'],
+			'soon_mins'     => isset( $banner['soon_mins'] ) && is_scalar( $banner['soon_mins'] ) ? max( 0, min( 720, absint( $banner['soon_mins'] ) ) ) : $defaults['banner']['soon_mins'],
+			'colour_open'   => self::normalized_colour( isset( $banner['colour_open'] ) ? $banner['colour_open'] : '', $defaults['banner']['colour_open'] ),
+			'colour_closed' => self::normalized_colour( isset( $banner['colour_closed'] ) ? $banner['colour_closed'] : '', $defaults['banner']['colour_closed'] ),
+			'colour_text'   => self::normalized_colour( isset( $banner['colour_text'] ) ? $banner['colour_text'] : '', $defaults['banner']['colour_text'] ),
+		);
+
+		// Marked label values are explicit sparse overrides. For unmarked legacy
+		// options, known defaults from installed locales are migrated while unknown
+		// values remain intact rather than risking deletion of custom wording.
+		$saved_labels  = ( isset( $saved['labels'] ) && is_array( $saved['labels'] ) ) ? $saved['labels'] : array();
+		$sparse_labels = ! empty( $saved[ self::LABEL_OVERRIDE_MARKER ] );
+		$legacy_keys   = $sparse_labels ? array() : self::legacy_default_keys( $saved_labels );
+		$overrides     = array();
+		foreach ( array_keys( $defaults['labels'] ) as $key ) {
+			if ( ! isset( $saved_labels[ $key ] ) || ! is_scalar( $saved_labels[ $key ] ) ) {
+				continue;
+			}
+			$value = sanitize_text_field( (string) $saved_labels[ $key ] );
+			if ( '' !== $value && ( $sparse_labels || ! isset( $legacy_keys[ $key ] ) ) ) {
+				$overrides[ $key ] = $value;
+			}
+		}
+		$out['labels'] = wp_parse_args( $overrides, $defaults['labels'] );
+		unset( $out[ self::LABEL_OVERRIDE_MARKER ] );
+
+		self::$cache[ $cache_key ] = $out;
+		return self::$cache[ $cache_key ];
 	}
 
 	/**
@@ -184,16 +300,21 @@ class IBOH_Settings {
 		$input    = is_array( $input ) ? $input : array();
 		$defaults = self::defaults();
 		$out      = array();
+		$range_truncated   = 0;
+		$holiday_truncated = 0;
 
 		// --- Schedule (weekdays 0..6) ---------------------------------------
 		$out['schedule'] = array();
 		foreach ( array( 0, 1, 2, 3, 4, 5, 6 ) as $dow ) {
 			$day             = isset( $input['schedule'][ $dow ] ) && is_array( $input['schedule'][ $dow ] ) ? $input['schedule'][ $dow ] : array();
 			$closed          = empty( $day['closed'] ) ? 0 : 1;
-			$ranges          = $closed ? array() : self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array() );
+			$ranges          = $closed ? array() : self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array(), $range_truncated );
+			if ( ! $closed && empty( $ranges ) ) {
+				$closed = 1;
+			}
 			$out['schedule'][ $dow ] = array(
 				'closed' => $closed,
-				'ranges' => $ranges,
+				'ranges' => $closed ? array() : $ranges,
 			);
 		}
 
@@ -201,17 +322,26 @@ class IBOH_Settings {
 		$out['holidays'] = array();
 		$holidays        = isset( $input['holidays'] ) && is_array( $input['holidays'] ) ? $input['holidays'] : array();
 		$today           = self::today_date();
-		$count           = 0;
+		$yesterday       = self::shift_date( $today, -1 );
 		$discarded       = 0;
+		$holiday_count   = 0;
+
+		// Yesterday is absent from a newly rendered admin form, but may still be
+		// submitted by a page kept open across midnight. Preserve an existing
+		// override as a fallback, then let a submitted yesterday row replace it.
+		// A closed override is significant too: dropping it could resurrect the
+		// regular weekday's overnight tail after midnight.
+		$existing = get_option( IBOH_OPTION, array() );
+		if ( is_array( $existing ) && isset( $existing['holidays'][ $yesterday ] ) && is_array( $existing['holidays'][ $yesterday ] ) ) {
+			$out['holidays'][ $yesterday ] = self::normalize_holiday( $existing['holidays'][ $yesterday ] );
+		}
+
 		foreach ( $holidays as $key => $row ) {
-			if ( $count >= self::MAX_HOLIDAYS ) {
-				break;
-			}
 			if ( ! is_array( $row ) ) {
 				continue;
 			}
 
-			$raw_date = isset( $row['date'] ) ? $row['date'] : '';
+			$raw_date = isset( $row['date'] ) && is_scalar( $row['date'] ) ? (string) $row['date'] : '';
 			if ( '' === trim( (string) $raw_date ) && is_string( $key ) ) {
 				$raw_date = $key;
 			}
@@ -227,12 +357,12 @@ class IBOH_Settings {
 				$discarded++;
 				continue;
 			}
-			if ( $date < $today ) {
+			if ( $date < $yesterday ) {
 				continue;
 			}
 
 			$closed = empty( $row['closed'] ) ? 0 : 1;
-			$ranges = $closed ? array() : self::sanitize_ranges( isset( $row['ranges'] ) ? $row['ranges'] : array() );
+			$ranges = $closed ? array() : self::sanitize_ranges( isset( $row['ranges'] ) ? $row['ranges'] : array(), $range_truncated );
 			if ( ! $closed && empty( $ranges ) ) {
 				$closed = 1;
 			}
@@ -245,16 +375,23 @@ class IBOH_Settings {
 			) {
 				continue;
 			}
+			$is_current = $date >= $today;
+			if ( $is_current && ! isset( $out['holidays'][ $date ] ) && $holiday_count >= self::MAX_HOLIDAYS ) {
+				$holiday_truncated++;
+				continue;
+			}
+			if ( $is_current && ! isset( $out['holidays'][ $date ] ) ) {
+				$holiday_count++;
+			}
 
 			$out['holidays'][ $date ] = array(
 				'closed' => $closed,
 				'ranges' => $closed ? array() : $ranges,
-				'label'  => isset( $row['label'] ) ? sanitize_text_field( $row['label'] ) : '',
+				'label'  => isset( $row['label'] ) && is_scalar( $row['label'] ) ? sanitize_text_field( (string) $row['label'] ) : '',
 			);
 			if ( 'bank_holiday' === $source ) {
 				$out['holidays'][ $date ]['source'] = 'bank_holiday';
 			}
-			$count++;
 		}
 		ksort( $out['holidays'] );
 
@@ -271,6 +408,44 @@ class IBOH_Settings {
 						'itboffins-live-opening-hours'
 					),
 					$discarded
+				),
+				'error'
+			);
+		}
+
+		if ( $range_truncated > 0 && function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				IBOH_OPTION,
+				'iboh_ranges_truncated',
+				sprintf(
+					/* translators: 1: number of time ranges not saved, 2: maximum ranges allowed per day/date. */
+					_n(
+						'%1$d time range was not saved because each day or special date is limited to %2$d ranges.',
+						'%1$d time ranges were not saved because each day or special date is limited to %2$d ranges.',
+						$range_truncated,
+						'itboffins-live-opening-hours'
+					),
+					$range_truncated,
+					self::MAX_RANGES
+				),
+				'error'
+			);
+		}
+
+		if ( $holiday_truncated > 0 && function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				IBOH_OPTION,
+				'iboh_holidays_truncated',
+				sprintf(
+					/* translators: 1: number of special dates not saved, 2: maximum stored special dates. */
+					_n(
+						'%1$d special date was not saved because the limit is %2$d dates.',
+						'%1$d special dates were not saved because the limit is %2$d dates.',
+						$holiday_truncated,
+						'itboffins-live-opening-hours'
+					),
+					$holiday_truncated,
+					self::MAX_HOLIDAYS
 				),
 				'error'
 			);
@@ -295,10 +470,10 @@ class IBOH_Settings {
 		$out['banner']['position']    = ( isset( $banner['position'] ) && 'bottom' === $banner['position'] ) ? 'bottom' : 'top';
 		$out['banner']['sticky']      = empty( $banner['sticky'] ) ? 0 : 1;
 		$out['banner']['push_top']    = empty( $banner['push_top'] ) ? 0 : 1;
-		$out['banner']['soon_mins']   = isset( $banner['soon_mins'] ) ? max( 0, min( 720, absint( $banner['soon_mins'] ) ) ) : $defaults['banner']['soon_mins'];
+		$out['banner']['soon_mins']   = isset( $banner['soon_mins'] ) && is_scalar( $banner['soon_mins'] ) ? max( 0, min( 720, absint( $banner['soon_mins'] ) ) ) : $defaults['banner']['soon_mins'];
 
 		foreach ( array( 'colour_open', 'colour_closed', 'colour_text' ) as $ck ) {
-			$colour            = isset( $banner[ $ck ] ) ? sanitize_hex_color( $banner[ $ck ] ) : '';
+			$colour            = isset( $banner[ $ck ] ) && is_scalar( $banner[ $ck ] ) ? sanitize_hex_color( (string) $banner[ $ck ] ) : '';
 			$out['banner'][ $ck ] = $colour ? $colour : $defaults['banner'][ $ck ];
 		}
 
@@ -306,31 +481,49 @@ class IBOH_Settings {
 		$labels        = isset( $input['labels'] ) && is_array( $input['labels'] ) ? $input['labels'] : array();
 		$out['labels'] = array();
 		foreach ( $defaults['labels'] as $key => $default_label ) {
-			$value               = isset( $labels[ $key ] ) ? sanitize_text_field( $labels[ $key ] ) : '';
-			$out['labels'][ $key ] = ( '' === $value ) ? $default_label : $value;
+			$value = isset( $labels[ $key ] ) && is_scalar( $labels[ $key ] ) ? sanitize_text_field( (string) $labels[ $key ] ) : '';
+			if ( '' !== $value && $value !== $default_label ) {
+				$out['labels'][ $key ] = $value;
+			}
 		}
+		$out[ self::LABEL_OVERRIDE_MARKER ] = 1;
 
 		return $out;
 	}
 
 	/**
-	 * Remove special dates that are now in the past.
+	 * Remove special dates that are now in the past, optionally retaining the
+	 * previous date when requested by the live evaluator.
 	 *
-	 * @param array $holidays Holiday rows keyed by YYYY-MM-DD.
+	 * @param array $holidays         Holiday rows keyed by YYYY-MM-DD.
+	 * @param bool  $include_yesterday Retain yesterday's complete override.
 	 * @return array
 	 */
-	private static function current_holidays( $holidays ) {
+	private static function current_holidays( $holidays, $include_yesterday = false ) {
 		if ( ! is_array( $holidays ) ) {
 			return array();
 		}
 
-		$today = self::today_date();
-		$out   = array();
-		foreach ( $holidays as $date => $holiday ) {
-			if ( ! is_string( $date ) || null === self::valid_date( $date ) || $date < $today || ! is_array( $holiday ) ) {
+		$today     = self::today_date();
+		$yesterday = self::shift_date( $today, -1 );
+		$cutoff    = $include_yesterday ? $yesterday : $today;
+		$out       = array();
+		$count     = 0;
+		$dates     = array_keys( $holidays );
+		sort( $dates, SORT_STRING );
+		foreach ( $dates as $date ) {
+			$holiday = $holidays[ $date ];
+			if ( ! is_string( $date ) || null === self::valid_date( $date ) || $date < $cutoff || ! is_array( $holiday ) ) {
 				continue;
 			}
-			$out[ $date ] = $holiday;
+			if ( $date >= $today ) {
+				if ( $count >= self::MAX_HOLIDAYS ) {
+					break;
+				}
+				$count++;
+			}
+			$normalized = self::normalize_holiday( $holiday );
+			$out[ $date ] = $normalized;
 		}
 		ksort( $out );
 
@@ -358,7 +551,7 @@ class IBOH_Settings {
 		}
 
 		foreach ( array( 'date', 'label', 'closed' ) as $key ) {
-			if ( isset( $row[ $key ] ) && '' !== trim( (string) $row[ $key ] ) ) {
+			if ( isset( $row[ $key ] ) && is_scalar( $row[ $key ] ) && '' !== trim( (string) $row[ $key ] ) ) {
 				return true;
 			}
 		}
@@ -371,18 +564,17 @@ class IBOH_Settings {
 	 *
 	 * Drops malformed or zero-length ranges, caps the count, and re-indexes.
 	 *
-	 * @param mixed $ranges Raw ranges array.
+	 * @param mixed    $ranges    Raw ranges array.
+	 * @param int|null $truncated Optional running count of valid ranges omitted
+	 *                            because a day/date exceeded MAX_RANGES.
 	 * @return array
 	 */
-	private static function sanitize_ranges( $ranges ) {
+	private static function sanitize_ranges( $ranges, &$truncated = null ) {
 		if ( ! is_array( $ranges ) ) {
 			return array();
 		}
 		$out = array();
 		foreach ( $ranges as $range ) {
-			if ( count( $out ) >= self::MAX_RANGES ) {
-				break;
-			}
 			if ( ! is_array( $range ) ) {
 				continue;
 			}
@@ -399,12 +591,188 @@ class IBOH_Settings {
 			if ( $open === $close && ! ( '00:00' === $open && '24:00' === $close ) ) {
 				continue;
 			}
+			if ( count( $out ) >= self::MAX_RANGES ) {
+				if ( null !== $truncated ) {
+					$truncated++;
+				}
+				continue;
+			}
 			$out[] = array(
 				'open'  => $open,
 				'close' => $close,
 			);
 		}
 		return array_values( $out );
+	}
+
+	/**
+	 * Normalize one stored special-date row defensively.
+	 *
+	 * @param array $holiday Stored row.
+	 * @return array
+	 */
+	private static function normalize_holiday( $holiday ) {
+		$closed = empty( $holiday['closed'] ) ? 0 : 1;
+		$ranges = $closed ? array() : self::sanitize_ranges( isset( $holiday['ranges'] ) ? $holiday['ranges'] : array() );
+		if ( ! $closed && empty( $ranges ) ) {
+			$closed = 1;
+		}
+
+		$out = array(
+			'closed' => $closed,
+			'ranges' => $closed ? array() : $ranges,
+			'label'  => isset( $holiday['label'] ) && is_scalar( $holiday['label'] ) ? sanitize_text_field( (string) $holiday['label'] ) : '',
+		);
+		if ( isset( $holiday['source'] ) && 'bank_holiday' === $holiday['source'] ) {
+			$out['source'] = 'bank_holiday';
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Shift an ISO date without involving the site's daylight-saving offset.
+	 *
+	 * @param string $date ISO date.
+	 * @param int    $days Signed day offset.
+	 * @return string
+	 */
+	private static function shift_date( $date, $days ) {
+		$dt = DateTimeImmutable::createFromFormat( '!Y-m-d', $date, new DateTimeZone( 'UTC' ) );
+		if ( ! $dt ) {
+			return $date;
+		}
+		return $dt->modify( (int) $days . ' days' )->format( 'Y-m-d' );
+	}
+
+	/**
+	 * Normalize a stored colour with a known-safe fallback.
+	 *
+	 * @param mixed  $value    Stored value.
+	 * @param string $fallback Default colour.
+	 * @return string
+	 */
+	private static function normalized_colour( $value, $fallback ) {
+		$colour = is_scalar( $value ) ? sanitize_hex_color( (string) $value ) : '';
+		return $colour ? $colour : $fallback;
+	}
+
+	/**
+	 * Canonical source-language defaults used to migrate options saved by older
+	 * versions, which persisted translated defaults as if they were overrides.
+	 *
+	 * @return array
+	 */
+	private static function source_labels() {
+		return array(
+			'open'                 => "We're open",
+			'closed'               => "Sorry, we're closed",
+			'closes_at'            => 'Closes at %s',
+			'opens_today'          => 'Opens today at %s',
+			'opens_on'             => 'Opens %1$s at %2$s',
+			'opening_soon'         => 'Opening soon',
+			'closing_soon'         => 'Closing soon',
+			'open_24h'             => 'Open 24 hours',
+			'upcoming_heading'     => 'Upcoming dates',
+			'upcoming_closed'      => 'Closed %s',
+			'upcoming_closed_list' => '%s we are closed',
+			'upcoming_hours'       => '%1$s: %2$s',
+		);
+	}
+
+	/**
+	 * Infer which saved labels coherently match one legacy locale's defaults.
+	 *
+	 * A union of all installed translations would risk deleting a genuine custom
+	 * cross-locale label. Instead, require at least two matches covering at least
+	 * half of the stored labels, select the best-scoring locale map, and retain
+	 * only matches shared by equally strong candidates.
+	 *
+	 * @param array $saved_labels Unmarked stored labels.
+	 * @return array<string,bool> Keys safe to remove as legacy defaults.
+	 */
+	private static function legacy_default_keys( $saved_labels ) {
+		if ( ! is_array( $saved_labels ) ) {
+			return array();
+		}
+
+		$stored = array();
+		foreach ( self::source_labels() as $key => $unused ) {
+			if ( isset( $saved_labels[ $key ] ) && is_scalar( $saved_labels[ $key ] ) ) {
+				$value = sanitize_text_field( (string) $saved_labels[ $key ] );
+				if ( '' !== $value ) {
+					$stored[ $key ] = $value;
+				}
+			}
+		}
+		$total = count( $stored );
+		if ( $total < 2 ) {
+			return array();
+		}
+
+		$best_score = 0;
+		$best_sets  = array();
+		foreach ( self::legacy_default_label_sets() as $candidate ) {
+			$matches = array();
+			foreach ( $stored as $key => $value ) {
+				if ( isset( $candidate[ $key ] ) && $candidate[ $key ] === $value ) {
+					$matches[ $key ] = true;
+				}
+			}
+			$score = count( $matches );
+			if ( $score > $best_score ) {
+				$best_score = $score;
+				$best_sets  = array( $matches );
+			} elseif ( $score === $best_score && $score > 0 ) {
+				$best_sets[] = $matches;
+			}
+		}
+
+		if ( $best_score < 2 || ( $best_score * 2 ) < $total || empty( $best_sets ) ) {
+			return array();
+		}
+
+		$safe = array_shift( $best_sets );
+		foreach ( $best_sets as $matches ) {
+			$safe = array_intersect_key( $safe, $matches );
+		}
+		return $safe;
+	}
+
+	/**
+	 * Collect distinct source/current/installed-locale default label maps.
+	 *
+	 * @return array<int,array<string,string>>
+	 */
+	private static function legacy_default_label_sets() {
+		if ( null !== self::$legacy_label_defaults ) {
+			return self::$legacy_label_defaults;
+		}
+
+		$candidates = array(
+			self::source_labels(),
+			self::defaults()['labels'],
+		);
+
+		if ( function_exists( 'get_available_languages' ) && function_exists( 'switch_to_locale' ) && function_exists( 'restore_previous_locale' ) ) {
+			$locales = get_available_languages();
+			$locales = is_array( $locales ) ? array_unique( array_filter( $locales, 'is_string' ) ) : array();
+			foreach ( $locales as $locale ) {
+				if ( '' === $locale || ! switch_to_locale( $locale ) ) {
+					continue;
+				}
+				$candidates[] = self::defaults()['labels'];
+				restore_previous_locale();
+			}
+		}
+
+		$unique = array();
+		foreach ( $candidates as $candidate ) {
+			$fingerprint = md5( serialize( $candidate ) );
+			$unique[ $fingerprint ] = $candidate;
+		}
+		self::$legacy_label_defaults = array_values( $unique );
+		return self::$legacy_label_defaults;
 	}
 
 	/**

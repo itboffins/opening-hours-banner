@@ -2,14 +2,14 @@
 # This file is distributed under the GPL-2.0-or-later license.
 msgid ""
 msgstr ""
-"Project-Id-Version: ITBoffins Live Opening Hours 1.1.13\n"
+"Project-Id-Version: ITBoffins Live Opening Hours 1.1.15\n"
 "Report-Msgid-Bugs-To: https://itboffins.com/\n"
 "Last-Translator: IT Boffins <hello@itboffins.com>\n"
 "Language-Team: IT Boffins <hello@itboffins.com>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-30T00:00:00+00:00\n"
+"POT-Creation-Date: 2026-08-04T00:00:00+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Domain: itboffins-live-opening-hours\n"
 
@@ -88,13 +88,13 @@ msgstr ""
 msgid "Copy Monday to the working week"
 msgstr ""
 
-msgid "Holidays & one-off changes"
+msgid "Public special dates & one-off changes"
 msgstr ""
 
-msgid "Add bank holidays, Christmas closures, early finishes, special Saturdays, or any date that does not follow your normal week."
+msgid "Publish bank holidays, Christmas closures, early finishes, special Saturdays, or any date that does not follow your normal week."
 msgstr ""
 
-msgid "Special date notices"
+msgid "Public special-date notices"
 msgstr ""
 
 msgid "Only mention a change on the day"
@@ -103,7 +103,7 @@ msgstr ""
 msgid "Tell customers about upcoming changes in advance"
 msgstr ""
 
-msgid "Bank holiday notices"
+msgid "Public bank-holiday notices"
 msgstr ""
 
 msgid "Show bank holidays only when they are within 7 days"
@@ -118,7 +118,7 @@ msgstr ""
 msgid "Closed on bank holidays?"
 msgstr ""
 
-msgid "Add the usual UK bank holidays as closed special dates. Choose your part of the UK and the year, then save."
+msgid "Add the usual UK bank holidays as public closed dates. Choose your part of the UK and the year, then save."
 msgstr ""
 
 msgid "One-off public holidays are not added automatically, so add those separately if you need them."
@@ -139,7 +139,7 @@ msgstr ""
 msgid "Bank holiday year"
 msgstr ""
 
-msgid "Add closed bank holidays"
+msgid "Add public closed bank holidays"
 msgstr ""
 
 msgid "Added: %1$d. Replaced existing dates: %2$d. Already in your list: %3$d. Save changes when you are happy."
@@ -184,7 +184,7 @@ msgstr ""
 msgid "St Andrew's Day"
 msgstr ""
 
-msgid "Add a special date"
+msgid "Add a public special date"
 msgstr ""
 
 msgid "Customer notice bar"
@@ -256,7 +256,7 @@ msgstr ""
 msgid "Your wording"
 msgstr ""
 
-msgid "Make the messages sound like your business. Keep any placeholders shown in the field help."
+msgid "Make the public messages sound like your business. Keep any placeholders shown in the field help."
 msgstr ""
 
 msgid "Main message when you are open"
@@ -319,7 +319,7 @@ msgstr ""
 msgid "+ Add another time"
 msgstr ""
 
-msgid "Note (optional)"
+msgid "Public note (optional)"
 msgstr ""
 
 msgid "Dismiss"
@@ -365,4 +365,102 @@ msgid "Open or closed message"
 msgstr ""
 
 msgid "Both"
+msgstr ""
+
+msgid "Public information:"
+msgstr ""
+
+msgid "These hours are published on your site. Do not include confidential information."
+msgstr ""
+
+msgid "Dates, hours, and notes in this section are public and may be shown to visitors. Do not include confidential information."
+msgstr ""
+
+msgid "This wording is published on your site. Do not include confidential information."
+msgstr ""
+
+#. translators: %d: maximum number of time ranges.
+msgid "You can add up to %d time ranges here."
+msgstr ""
+
+#. translators: %d: maximum number of public special dates.
+msgid "You can add up to %d public special dates."
+msgstr ""
+
+msgid "Limit reached."
+msgstr ""
+
+msgid "The public special-date limit has been reached. Remove a date before adding another."
+msgstr ""
+
+#. translators: %s: weekday name or public special-date description.
+msgid "Time ranges for %s"
+msgstr ""
+
+#. translators: %1$d: range number, %2$s: weekday or public special date.
+msgid "Time range %1$d for %2$s"
+msgstr ""
+
+#. translators: %1$s: weekday or public special date, %2$d: range number.
+msgid "Opening time for %1$s, range %2$d"
+msgstr ""
+
+#. translators: %1$s: weekday or public special date, %2$d: range number.
+msgid "Closing time for %1$s, range %2$d"
+msgstr ""
+
+#. translators: %1$d: range number, %2$s: weekday or public special date.
+msgid "Remove time range %1$d for %2$s"
+msgstr ""
+
+#. translators: %s: public special date in YYYY-MM-DD format.
+msgid "public special date %s"
+msgstr ""
+
+msgid "Public special date"
+msgstr ""
+
+msgid "Remove this public special date"
+msgstr ""
+
+msgid "Time range"
+msgstr ""
+
+msgid "Opening time"
+msgstr ""
+
+msgid "Closing time"
+msgstr ""
+
+msgid "Remove this time range"
+msgstr ""
+
+msgid "New public special date"
+msgstr ""
+
+msgid "Time ranges for this public special date"
+msgstr ""
+
+#. translators: 1: number of time ranges not saved, 2: maximum ranges allowed per day/date.
+msgid "%1$d time range was not saved because each day or special date is limited to %2$d ranges."
+msgid_plural "%1$d time ranges were not saved because each day or special date is limited to %2$d ranges."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: 1: number of special dates not saved, 2: maximum stored special dates.
+msgid "%1$d special date was not saved because the limit is %2$d dates."
+msgid_plural "%1$d special dates were not saved because the limit is %2$d dates."
+msgstr[0] ""
+msgstr[1] ""
+
+msgctxt "separator between list items"
+msgid ", "
+msgstr ""
+
+msgctxt "two-item list"
+msgid "%1$s and %2$s"
+msgstr ""
+
+msgctxt "last two items in a list of three or more"
+msgid "%1$s, and %2$s"
 msgstr ""

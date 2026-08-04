@@ -67,7 +67,7 @@ class IBOH_Shortcode {
 			? $state['upcoming_html']
 			: esc_html( $state['upcoming'] );
 
-		$html  = '<p class="iboh-status ' . esc_attr( $class ) . '" data-iboh-status' . $style . '>';
+		$html  = '<p class="iboh-status ' . esc_attr( $class ) . '" data-iboh-status role="status" aria-live="polite" aria-atomic="true"' . $style . '>';
 		$html .= '<span class="iboh-dot" aria-hidden="true"></span>';
 		$html .= '<span class="iboh-status-main" data-iboh-main>' . esc_html( $state['main'] ) . '</span>';
 		$html .= ' <span class="iboh-status-sub" data-iboh-sub>' . esc_html( $state['sub'] ) . '</span>';
@@ -90,14 +90,13 @@ class IBOH_Shortcode {
 		$days     = IBOH_Config::day_names();
 
 		$weekly        = ! isset( $options['weekly_enabled'] ) || ! empty( $options['weekly_enabled'] );
-		$show_upcoming = ! empty( $options['show_upcoming'] ) || ! $weekly;
+		$show_upcoming = ! empty( $options['show_upcoming'] );
 
 		$html = '';
 
 		if ( $weekly ) {
 			// Display order Monday..Sunday (store/key order is 0..6 = Sun..Sat).
-			$order = array( 1, 2, 3, 4, 5, 6, 0 );
-
+			$order          = array( 1, 2, 3, 4, 5, 6, 0 );
 			$html .= '<table class="iboh-hours" data-iboh-table><tbody>';
 			foreach ( $order as $dow ) {
 				$day    = isset( $schedule[ $dow ] ) ? $schedule[ $dow ] : array( 'closed' => 1, 'ranges' => array() );
@@ -192,24 +191,74 @@ class IBOH_Shortcode {
 	 * @return string
 	 */
 	private static function format_day_hours( $day, $labels ) {
-		if ( ! empty( $day['closed'] ) || empty( $day['ranges'] ) ) {
+		$ranges = self::normalize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array() );
+		if ( ! empty( $day['closed'] ) || empty( $ranges ) ) {
 			return __( 'Closed', 'itboffins-live-opening-hours' );
 		}
 
 		// Whole-day open shortcut.
-		if ( 1 === count( $day['ranges'] ) && '00:00' === $day['ranges'][0]['open'] && '24:00' === $day['ranges'][0]['close'] ) {
+		if ( 1 === count( $ranges ) && '00:00' === $ranges[0]['open'] && '24:00' === $ranges[0]['close'] ) {
 			return isset( $labels['open_24h'] ) ? $labels['open_24h'] : __( 'Open 24 hours', 'itboffins-live-opening-hours' );
 		}
 
 		$parts = array();
-		foreach ( $day['ranges'] as $r ) {
+		foreach ( $ranges as $r ) {
 			$parts[] = self::fmt( $r['open'] ) . ' – ' . self::fmt( $r['close'] );
 		}
 		return implode( ', ', $parts );
 	}
 
 	/**
-	 * Format an 'HH:MM' string using the site's time format.
+	 * Defensively normalize ranges before static table rendering.
+	 *
+	 * @param mixed $ranges Raw ranges.
+	 * @return array
+	 */
+	private static function normalize_ranges( $ranges ) {
+		if ( ! is_array( $ranges ) ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $ranges as $range ) {
+			if ( ! is_array( $range ) ) {
+				continue;
+			}
+			$open  = isset( $range['open'] ) && is_scalar( $range['open'] ) ? trim( (string) $range['open'] ) : '';
+			$close = isset( $range['close'] ) && is_scalar( $range['close'] ) ? trim( (string) $range['close'] ) : '';
+			if ( ! preg_match( '/^([01]\d|2[0-3]):[0-5]\d$/', $open ) ) {
+				continue;
+			}
+			if ( '24:00' !== $close && ! preg_match( '/^([01]\d|2[0-3]):[0-5]\d$/', $close ) ) {
+				continue;
+			}
+			if ( $open === $close ) {
+				continue;
+			}
+			$out[] = array( 'open' => $open, 'close' => $close );
+		}
+		return $out;
+	}
+
+	/**
+	 * Convert a strict wall-clock string to minutes after midnight.
+	 *
+	 * @param mixed $hhmm Time.
+	 * @return int|null
+	 */
+	private static function to_minutes( $hhmm ) {
+		$hhmm = is_scalar( $hhmm ) ? trim( (string) $hhmm ) : '';
+		if ( '24:00' === $hhmm ) {
+			return 1440;
+		}
+		if ( ! preg_match( '/^([01]\d|2[0-3]):([0-5]\d)$/', $hhmm, $matches ) ) {
+			return null;
+		}
+		return ( (int) $matches[1] * 60 ) + (int) $matches[2];
+	}
+
+	/**
+	 * Format an 'HH:MM' string using the supported tokens in the site's time
+	 * format. Tokens that require a specific instant/timezone remain literal.
 	 *
 	 * @param string $hhmm Time.
 	 * @return string
@@ -218,10 +267,57 @@ class IBOH_Shortcode {
 		if ( '24:00' === $hhmm ) {
 			$hhmm = '23:59'; // Display only; treated as end-of-day elsewhere.
 		}
-		$parts   = explode( ':', $hhmm );
-		$minutes = (int) $parts[0] * 60 + ( isset( $parts[1] ) ? (int) $parts[1] : 0 );
-		$base    = new DateTimeImmutable( IBOH_Timezone::now()->format( 'Y-m-d' ) . ' 00:00:00', wp_timezone() );
-		return wp_date( (string) get_option( 'time_format', 'H:i' ), $base->getTimestamp() + $minutes * 60 );
+		$minutes = self::to_minutes( $hhmm );
+		$minutes = null === $minutes ? 0 : $minutes;
+		$hour    = (int) floor( $minutes / 60 );
+		$minute  = $minutes % 60;
+		$hour_12 = $hour % 12 ? $hour % 12 : 12;
+		$tokens  = array(
+			'G' => (string) $hour,
+			'H' => sprintf( '%02d', $hour ),
+			'g' => (string) $hour_12,
+			'h' => sprintf( '%02d', $hour_12 ),
+			'i' => sprintf( '%02d', $minute ),
+			's' => '00',
+			'a' => self::meridiem( $hour < 12 ? 'am' : 'pm' ),
+			'A' => self::meridiem( $hour < 12 ? 'AM' : 'PM' ),
+		);
+		$format  = get_option( 'time_format', 'H:i' );
+		$format  = is_scalar( $format ) ? (string) $format : 'H:i';
+		$output  = '';
+		$escaped = false;
+		$length  = strlen( $format );
+		for ( $index = 0; $index < $length; $index++ ) {
+			$character = $format[ $index ];
+			if ( $escaped ) {
+				$output .= $character;
+				$escaped = false;
+			} elseif ( '\\' === $character ) {
+				$escaped = true;
+			} else {
+				$output .= array_key_exists( $character, $tokens ) ? $tokens[ $character ] : $character;
+			}
+		}
+		if ( $escaped ) {
+			$output .= '\\';
+		}
+		return $output;
+	}
+
+	/**
+	 * Localized meridiem name with an English fallback.
+	 *
+	 * @param string $key am, pm, AM, or PM.
+	 * @return string
+	 */
+	private static function meridiem( $key ) {
+		if ( isset( $GLOBALS['wp_locale'] ) && is_object( $GLOBALS['wp_locale'] ) ) {
+			$value = $GLOBALS['wp_locale']->get_meridiem( $key );
+			if ( is_string( $value ) && '' !== $value ) {
+				return $value;
+			}
+		}
+		return $key;
 	}
 
 	/**
@@ -231,10 +327,11 @@ class IBOH_Shortcode {
 	 * @return string
 	 */
 	private static function fmt_date( $ymd ) {
-		$dt = DateTimeImmutable::createFromFormat( '!Y-m-d', $ymd, wp_timezone() );
-		if ( ! $dt ) {
+		$utc = new DateTimeZone( 'UTC' );
+		$dt  = is_string( $ymd ) ? DateTimeImmutable::createFromFormat( '!Y-m-d', $ymd, $utc ) : false;
+		if ( ! $dt || $dt->format( 'Y-m-d' ) !== $ymd ) {
 			return $ymd;
 		}
-		return wp_date( 'D j M', $dt->getTimestamp() );
+		return wp_date( 'D j M', $dt->getTimestamp(), $utc );
 	}
 }

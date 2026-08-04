@@ -133,6 +133,24 @@
 	min-width: 280px;
 }
 
+.iboh-preview .iboh-dot {
+	display: inline-block;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.85;
+	flex: 0 0 auto;
+}
+
+.iboh-preview.iboh-open .iboh-dot {
+	background: #1db954;
+}
+
+.iboh-preview.iboh-closed .iboh-dot {
+	background: #e5484d;
+}
+
 .iboh-preview-main {
 	font-weight: 700;
 }
@@ -196,6 +214,11 @@
 	font-weight: 600;
 }
 
+.iboh-preview.iboh-preview-hidden .iboh-dot {
+	background: currentColor;
+	opacity: 0.45;
+}
+
 /* ---- Weekly schedule editor ---- */
 .iboh-weekly-toggle {
 	display: flex;
@@ -208,6 +231,11 @@
 
 .iboh-weekly-toggle .description {
 	font-weight: 400;
+}
+
+.iboh-public-warning {
+	border-left: 4px solid var(--iboh-green-deep);
+	padding-left: 10px;
 }
 
 /* ---- Upcoming notice controls ---- */
@@ -293,6 +321,11 @@
 
 .iboh-range-sep {
 	color: var(--iboh-muted);
+}
+
+.iboh-limit-note {
+	display: inline-block;
+	margin-left: 8px;
 }
 
 /* ---- Holidays ---- */
@@ -390,6 +423,13 @@
 .iboh-wrap .iboh-remove-range,
 .iboh-wrap .iboh-remove-holiday {
 	color: #b32d2e;
+}
+
+.iboh-wrap .iboh-add-range[disabled],
+.iboh-wrap .iboh-add-range[aria-disabled="true"] {
+	color: var(--iboh-muted);
+	cursor: not-allowed;
+	text-decoration: none;
 }
 
 /* ---- Promo ---- */

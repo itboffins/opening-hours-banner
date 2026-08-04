@@ -20,12 +20,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class IBOH_Block {
 
 	/**
-	 * Register the block and its editor script.
+	 * Register the block, its editor script, and shared preview styles.
 	 */
 	public function init() {
 		if ( ! function_exists( 'register_block_type' ) ) {
 			return; // WordPress < 5.0.
 		}
+
+		wp_register_style(
+			'iboh-frontend',
+			IBOH_URL . 'assets/frontend.css',
+			array(),
+			IBOH_VERSION
+		);
 
 		wp_register_script(
 			'iboh-editor',
@@ -44,6 +51,8 @@ class IBOH_Block {
 			array(
 				'api_version'     => 2,
 				'editor_script'   => 'iboh-editor',
+				'style'           => 'iboh-frontend',
+				'editor_style'    => 'iboh-frontend',
 				'attributes'      => array(
 					'show' => array(
 						'type'    => 'string',
@@ -56,13 +65,19 @@ class IBOH_Block {
 	}
 
 	/**
-	 * Render callback — reuse the shortcode renderer for a single source of truth.
+	 * Render callback — reuse the shortcode renderer inside the standard block wrapper.
 	 *
 	 * @param array $attributes Block attributes.
 	 * @return string
 	 */
 	public static function render( $attributes ) {
-		$show = isset( $attributes['show'] ) ? $attributes['show'] : 'table';
-		return IBOH_Shortcode::render( array( 'show' => $show ) );
+		$show    = isset( $attributes['show'] ) ? $attributes['show'] : 'table';
+		$content = IBOH_Shortcode::render( array( 'show' => $show ) );
+
+		return sprintf(
+			'<div %1$s>%2$s</div>',
+			get_block_wrapper_attributes(),
+			$content
+		);
 	}
 }
