@@ -94,7 +94,9 @@ class IBOH_Config {
 	private static function list_patterns() {
 		return array(
 			'separator' => _x( ', ', 'separator between list items', 'itboffins-live-opening-hours' ),
+			/* translators: 1: First list item, 2: Second list item. */
 			'pair'      => _x( '%1$s and %2$s', 'two-item list', 'itboffins-live-opening-hours' ),
+			/* translators: 1: Leading list items, 2: Final list item. */
 			'final'     => _x( '%1$s, and %2$s', 'last two items in a list of three or more', 'itboffins-live-opening-hours' ),
 		);
 	}

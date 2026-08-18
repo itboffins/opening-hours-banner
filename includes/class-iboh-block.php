@@ -49,7 +49,7 @@ class IBOH_Block {
 		register_block_type(
 			'iboh/opening-hours',
 			array(
-				'api_version'     => 2,
+				'api_version'     => 3,
 				'editor_script'   => 'iboh-editor',
 				'style'           => 'iboh-frontend',
 				'editor_style'    => 'iboh-frontend',

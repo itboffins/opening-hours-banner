@@ -17,6 +17,27 @@ global.window.IBOH = { previewCarry: {} };
 require( path.join( __dirname, '..', 'assets', 'admin.js' ) );
 const adminEvaluator = global.window.IBOHAdminEval;
 
+let registeredEditorBlock = null;
+global.window.wp = {
+	blocks: {
+		registerBlockType: function ( name, settings ) {
+			registeredEditorBlock = { name: name, settings: settings };
+		}
+	},
+	element: { createElement: function () {} },
+	i18n: { __: function ( text ) { return text; } },
+	serverSideRender: function () {},
+	blockEditor: {
+		InspectorControls: function () {},
+		useBlockProps: function () { return {}; }
+	},
+	components: {
+		PanelBody: function () {},
+		SelectControl: function () {}
+	}
+};
+require( path.join( __dirname, '..', 'assets', 'editor.js' ) );
+
 function closedSchedule() {
 	const schedule = {};
 	for ( let day = 0; day < 7; day++ ) {
@@ -80,6 +101,11 @@ function addDays( ymd, days ) {
 		String( date.getUTCDate() ).padStart( 2, '0' )
 	].join( '-' );
 }
+
+test( 'editor block uses iframe-compatible Block API version 3', function () {
+	assert.equal( registeredEditorBlock.name, 'iboh/opening-hours' );
+	assert.equal( registeredEditorBlock.settings.apiVersion, 3 );
+} );
 
 test( 'admin accessibility labels format numbered and unnumbered placeholders', function () {
 	assert.equal(

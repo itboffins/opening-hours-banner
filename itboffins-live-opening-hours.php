@@ -3,7 +3,7 @@
  * Plugin Name:       ITBoffins Live Opening Hours Banner & Table
  * Plugin URI:        https://itboffins.com/plugins/itboffins-live-opening-hours/
  * Description:       A live open/closed banner and opening-hours table powered by one locally stored WordPress schedule.
- * Version:           1.1.15
+ * Version:           1.1.16
  * Requires at least: 6.3
  * Requires PHP:      7.2
  * Author:            IT Boffins
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'IBOH_VERSION', '1.1.15' );
+define( 'IBOH_VERSION', '1.1.16' );
 define( 'IBOH_FILE', __FILE__ );
 define( 'IBOH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IBOH_URL', plugin_dir_url( __FILE__ ) );

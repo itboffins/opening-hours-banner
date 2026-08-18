@@ -800,6 +800,9 @@ class IBOH_Settings {
 	 */
 	private static function valid_date( $value ) {
 		$value = is_string( $value ) ? trim( $value ) : '';
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+			return null;
+		}
 		$dt    = DateTime::createFromFormat( '!Y-m-d', $value );
 		if ( $dt && $dt->format( 'Y-m-d' ) === $value ) {
 			return $value;

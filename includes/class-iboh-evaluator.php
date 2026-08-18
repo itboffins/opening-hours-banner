@@ -692,9 +692,11 @@ class IBOH_Evaluator {
 			return (string) $cfg['list'][ $key ];
 		}
 		if ( 'pair' === $key ) {
+			/* translators: 1: First list item, 2: Second list item. */
 			return _x( '%1$s and %2$s', 'two-item list', 'itboffins-live-opening-hours' );
 		}
 		if ( 'final' === $key ) {
+			/* translators: 1: Leading list items, 2: Final list item. */
 			return _x( '%1$s, and %2$s', 'last two items in a list of three or more', 'itboffins-live-opening-hours' );
 		}
 		return _x( ', ', 'separator between list items', 'itboffins-live-opening-hours' );

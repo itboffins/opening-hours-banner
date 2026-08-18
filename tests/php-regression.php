@@ -7,6 +7,9 @@
 
 define( 'ABSPATH', __DIR__ . DIRECTORY_SEPARATOR );
 define( 'IBOH_OPTION', 'iboh_settings' );
+define( 'IBOH_VERSION', 'test' );
+define( 'IBOH_DIR', dirname( __DIR__ ) . DIRECTORY_SEPARATOR );
+define( 'IBOH_URL', 'https://example.test/wp-content/plugins/itboffins-live-opening-hours/' );
 define( 'DAY_IN_SECONDS', 86400 );
 
 $GLOBALS['iboh_test_timezone']       = new DateTimeZone( 'UTC' );
@@ -28,6 +31,7 @@ $GLOBALS['iboh_test_translations']   = array();
 $GLOBALS['iboh_test_locale_maps']    = array();
 $GLOBALS['iboh_test_locale_stack']   = array();
 $GLOBALS['iboh_test_languages']      = array();
+$GLOBALS['iboh_test_registered_block'] = null;
 
 function __( $text ) {
 	$locale_map = isset( $GLOBALS['iboh_test_locale_maps'][ get_locale() ] )
@@ -158,6 +162,26 @@ function shortcode_atts( $defaults, $attributes ) {
 
 function get_block_wrapper_attributes() {
 	return 'class="wp-block-iboh-opening-hours custom-class"';
+}
+
+function wp_register_style() {
+	return true;
+}
+
+function wp_register_script() {
+	return true;
+}
+
+function wp_set_script_translations() {
+	return true;
+}
+
+function register_block_type( $name, $args ) {
+	$GLOBALS['iboh_test_registered_block'] = array(
+		'name' => $name,
+		'args' => $args,
+	);
+	return true;
 }
 
 function is_multisite() {
@@ -500,6 +524,20 @@ $settings = IBOH_Settings::all();
 iboh_test_same( 1, $settings['schedule'][1]['closed'], 'Malformed stored ranges should normalize to closed' );
 iboh_test_same( 1, $settings['schedule'][2]['closed'], 'An open weekday with no valid ranges should normalize to closed' );
 
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+$saved = IBOH_Settings::sanitize(
+	array(
+		'schedule' => iboh_test_closed_schedule(),
+		'holidays' => array(
+			array(
+				'date'   => "2026-08-04\0invalid",
+				'closed' => 1,
+			),
+		),
+	)
+);
+iboh_test_same( array(), $saved['holidays'], 'Malformed dates should be rejected before modern PHP date parsing' );
+
 // Yesterday is hidden from admin callers, retained for evaluators, and survives a save.
 $GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array(
 	'holidays' => array(
@@ -718,6 +756,10 @@ iboh_test_check(
 	0 === strpos( $block_html, '<div class="wp-block-iboh-opening-hours custom-class">' ),
 	'Dynamic block should preserve get_block_wrapper_attributes output'
 );
+$block = new IBOH_Block();
+$block->init();
+iboh_test_same( 'iboh/opening-hours', $GLOBALS['iboh_test_registered_block']['name'], 'Dynamic block should register under its public name' );
+iboh_test_same( 3, $GLOBALS['iboh_test_registered_block']['args']['api_version'], 'Dynamic block should use iframe-compatible Block API version 3' );
 
 // Multisite uninstall removes the per-site option without direct SQL.
 $GLOBALS['iboh_test_multisite']      = true;

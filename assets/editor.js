@@ -20,7 +20,7 @@
 	var useBlockProps = wp.blockEditor.useBlockProps;
 
 	wp.blocks.registerBlockType( 'iboh/opening-hours', {
-		apiVersion: 2,
+		apiVersion: 3,
 		title: __( 'Live Opening Hours', 'itboffins-live-opening-hours' ),
 		description: __( 'Show dynamic opening hours and a live open/closed message.', 'itboffins-live-opening-hours' ),
 		icon: 'clock',

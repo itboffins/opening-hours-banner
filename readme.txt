@@ -2,9 +2,9 @@
 Contributors: itboffins
 Tags: opening hours, business hours, store hours, open closed, live status
 Requires at least: 6.3
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.15
+Stable tag: 1.1.16
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -87,6 +87,10 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 
 == Changelog ==
 
+= 1.1.16 =
+* Compatibility: tested with WordPress 7.1 RC3 and migrated the dynamic block to Block API version 3 for the always-iframed post editor.
+* Hardening: malformed special-date values are rejected before date parsing on modern PHP versions.
+
 = 1.1.15 =
 * Accessibility: dynamically added time ranges keep specific weekday/date and range-number labels, and the notice-bar dismiss control now has a 44-by-44-pixel touch target.
 * Admin: saving settings now shows WordPress's standard success confirmation.
@@ -157,6 +161,9 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 * Initial release: weekly schedule editor, split hours, holidays/special dates, customer notice bar, hours table block, and shortcode.
 
 == Upgrade Notice ==
+
+= 1.1.16 =
+Adds WordPress 7.1 editor compatibility and hardens special-date validation on modern PHP.
 
 = 1.1.15 =
 Improves save feedback and fixes accessibility details found during live desktop and mobile verification.
