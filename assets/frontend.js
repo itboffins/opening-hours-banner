@@ -70,6 +70,23 @@
 		return parts;
 	}
 
+	/* UTC offset (minutes) for the fallback path. Prefers the server-supplied
+	 * transition table so a cached page still follows daylight saving. */
+	function fallbackOffset( cfg, now ) {
+		var offset = ( +cfg.offset ) || 0;
+		var table = cfg.offsets;
+		if ( Array.isArray( table ) && table.length ) {
+			var seconds = now.getTime() / 1000;
+			for ( var i = 0; i < table.length; i++ ) {
+				var row = table[ i ];
+				if ( Array.isArray( row ) && row.length >= 2 && ( +row[ 0 ] ) <= seconds ) {
+					offset = ( +row[ 1 ] ) || 0;
+				}
+			}
+		}
+		return offset;
+	}
+
 	/* Current time in the SITE timezone: { ymd, dow, minutes, epochMs }. */
 	function siteNow( cfg, when ) {
 		var now = when || new Date();
@@ -90,7 +107,7 @@
 				/* Fall through to the offset path. */
 			}
 		}
-		var shifted = new Date( now.getTime() + ( ( cfg.offset || 0 ) * 60000 ) );
+		var shifted = new Date( now.getTime() + ( fallbackOffset( cfg, now ) * 60000 ) );
 		return {
 			ymd: shifted.getUTCFullYear() + '-' + pad( shifted.getUTCMonth() + 1 ) + '-' + pad( shifted.getUTCDate() ),
 			dow: shifted.getUTCDay(),
@@ -517,6 +534,21 @@
 		}
 	}
 
+	/* Translatable joining patterns shipped by IBOH_Config::formats(). */
+	function fmtPattern( cfg, key ) {
+		var fallback = {
+			range: '%1$s – %2$s',
+			ranges: ', ',
+			dateTime: '%1$s, %2$s',
+			dateNote: '%1$s (%2$s)',
+			items: ' · '
+		};
+		var formats = cfg.formats || {};
+		return formats[ key ] !== undefined && null !== formats[ key ] && '' !== String( formats[ key ] )
+			? String( formats[ key ] )
+			: fallback[ key ];
+	}
+
 	/* Display text for a list of ranges, mirroring the server table. */
 	function fmtRanges( cfg, ranges ) {
 		var L = cfg.labels || {};
@@ -536,8 +568,8 @@
 				return '';
 			}
 			close = ( '24:00' === range.close ) ? 1439 : close;
-			return fmtTime( cfg, open ) + ' – ' + fmtTime( cfg, close );
-		} ).filter( Boolean ).join( ', ' );
+			return sprintf( fmtPattern( cfg, 'range' ), [ fmtTime( cfg, open ), fmtTime( cfg, close ) ] );
+		} ).filter( Boolean ).join( fmtPattern( cfg, 'ranges' ) );
 	}
 
 	/* One-line note for an upcoming special date. */
@@ -575,13 +607,13 @@
 		} );
 		flushClosedDates();
 
-		return parts.filter( Boolean ).join( ' · ' );
+		return parts.filter( Boolean ).join( fmtPattern( cfg, 'items' ) );
 	}
 
 	function eventDateLabel( cfg, ev ) {
 		var dateText = fmtDate( cfg, ev.date );
 		var label = ev.label === undefined || null === ev.label ? '' : String( ev.label );
-		return '' !== label ? ( dateText + ' (' + label + ')' ) : dateText;
+		return '' !== label ? sprintf( fmtPattern( cfg, 'dateNote' ), [ dateText, label ] ) : dateText;
 	}
 
 	function formatClosedDates( cfg, closedDates ) {
@@ -618,13 +650,42 @@
 			: sprintf( settings.final, [ initial, items[ items.length - 1 ] ] );
 	}
 
+	/* Mirror esc_html(): existing entities (which sanitize_text_field can
+	 * store, e.g. "&lt;3") are not encoded a second time. */
 	function escapeHtml( value ) {
 		return String( value )
-			.replace( /&/g, '&amp;' )
+			.replace( /&(?!(?:[a-zA-Z][a-zA-Z0-9]*|#\d+|#[xX][0-9a-fA-F]+);)/g, '&amp;' )
 			.replace( /</g, '&lt;' )
 			.replace( />/g, '&gt;' )
 			.replace( /"/g, '&quot;' )
 			.replace( /'/g, '&#039;' );
+	}
+
+	/* Inverse for plain-text output. Stored labels and notes may hold HTML
+	 * entities (sanitize_text_field() keeps "&ndash;" and turns a stray "<"
+	 * into "&lt;"); esc_html() leaves valid entities alone, so the browser
+	 * shows the characters. Decode the same way: a detached <textarea> parses
+	 * its content as RCDATA, so entities are decoded and no markup is created. */
+	var entityDecoder = null;
+
+	function decodeEntities( value ) {
+		var text = String( value );
+		if ( -1 === text.indexOf( '&' ) ) {
+			return text;
+		}
+		if ( 'undefined' !== typeof document && document && 'function' === typeof document.createElement ) {
+			if ( ! entityDecoder ) {
+				entityDecoder = document.createElement( 'textarea' );
+			}
+			entityDecoder.innerHTML = text;
+			return entityDecoder.value;
+		}
+		return text
+			.replace( /&lt;/g, '<' )
+			.replace( /&gt;/g, '>' )
+			.replace( /&quot;/g, '"' )
+			.replace( /&#0*39;/g, "'" )
+			.replace( /&amp;/g, '&' );
 	}
 
 	function interpolateTemplate( template, args, html ) {
@@ -720,11 +781,17 @@
 		return shiftYmd( t.ymd, dayOffset ).ymd + 'T' + pad( Math.floor( minute / 60 ) ) + ':' + pad( minute % 60 );
 	}
 
+	/* A close at exactly midnight tonight (absolute 1440) reads as "today" in
+	 * the afternoon and evening, so it is shown as a bare time then; earlier a
+	 * bare "00:00" could be read as already past, so the date is kept. */
 	function transitionLabel( cfg, t, absoluteMinute ) {
 		var dayOffset = Math.floor( absoluteMinute / 1440 );
 		var minute = ( ( absoluteMinute % 1440 ) + 1440 ) % 1440;
 		var time = fmtTime( cfg, minute );
-		return dayOffset > 0 ? fmtDate( cfg, shiftYmd( t.ymd, dayOffset ).ymd ) + ', ' + time : time;
+		if ( dayOffset <= 0 || ( 1 === dayOffset && 0 === minute && t.minutes >= 720 ) ) {
+			return time;
+		}
+		return sprintf( fmtPattern( cfg, 'dateTime' ), [ fmtDate( cfg, shiftYmd( t.ymd, dayOffset ).ymd ), time ] );
 	}
 
 	/* Build { show, open, main, sub, upcoming, occurrence } status text. */
@@ -816,7 +883,7 @@
 
 	function setText( root, sel, text ) {
 		var el = root.querySelector( sel );
-		var value = String( text || '' );
+		var value = decodeEntities( text || '' );
 		if ( el && el.textContent !== value ) {
 			el.textContent = value;
 		}
@@ -1090,6 +1157,10 @@
 		formatEventsHtml: formatEventsHtml,
 		fmtDate: fmtDate,
 		fmtTime: fmtTime,
+		fmtRanges: fmtRanges,
+		fallbackOffset: fallbackOffset,
+		escapeHtml: escapeHtml,
+		decodeEntities: decodeEntities,
 		liveSignature: liveSignature,
 		dismissalStorageKey: dismissalStorageKey
 	};

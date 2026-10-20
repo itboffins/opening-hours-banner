@@ -3,7 +3,7 @@
  * Plugin Name:       ITBoffins Live Opening Hours Banner & Table
  * Plugin URI:        https://itboffins.com/plugins/itboffins-live-opening-hours/
  * Description:       A live open/closed banner and opening-hours table powered by one locally stored WordPress schedule.
- * Version:           1.1.16
+ * Version:           1.2.0
  * Requires at least: 6.3
  * Requires PHP:      7.2
  * Author:            IT Boffins
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'IBOH_VERSION', '1.1.16' );
+define( 'IBOH_VERSION', '1.2.0' );
 define( 'IBOH_FILE', __FILE__ );
 define( 'IBOH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IBOH_URL', plugin_dir_url( __FILE__ ) );
@@ -37,6 +37,7 @@ require_once IBOH_DIR . 'includes/class-iboh-evaluator.php';
 require_once IBOH_DIR . 'includes/class-iboh-frontend.php';
 require_once IBOH_DIR . 'includes/class-iboh-shortcode.php';
 require_once IBOH_DIR . 'includes/class-iboh-block.php';
+require_once IBOH_DIR . 'includes/class-iboh-cache.php';
 require_once IBOH_DIR . 'includes/class-iboh-admin.php';
 
 /**
@@ -81,12 +82,14 @@ final class IBOH_Plugin {
 		add_action( 'init', array( new IBOH_Shortcode(), 'init' ) );
 		add_action( 'init', array( new IBOH_Block(), 'init' ) );
 
+		// Schedule edits are inlined into cached pages, so ask known page
+		// caches to purge whenever the option changes.
+		IBOH_Cache::init();
+
 		// Admin UI.
 		if ( is_admin() ) {
 			( new IBOH_Admin() )->init();
 		}
-
-
 	}
 }
 

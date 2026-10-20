@@ -426,7 +426,87 @@ test( 'malformed ranges are ignored and live signatures include occurrence and s
 	assert.equal( evaluator.dismissalStorageKey( { siteKey: '1' } ), evaluator.dismissalStorageKey( { siteKey: '1' } ) );
 } );
 
-test( 'admin preview retains yesterday carry and avoids unchanged live-region rewrites', function () {
+test( 'fixed-offset sites follow the shipped offset table instead of a frozen offset', function () {
+	// UTC-9 (Alaska standard time) with no IANA zone: the plain offset branch.
+	const fixed = { tz: '', offset: -540 };
+	assert.deepEqual(
+		evaluator.siteNow( fixed, new Date( '2026-10-20T03:00:00Z' ) ),
+		{ ymd: '2026-10-19', dow: 1, minutes: 18 * 60, epochMs: Date.parse( '2026-10-20T03:00:00Z' ) }
+	);
+	// wp_localize_script casts top-level scalars to strings.
+	assert.equal( evaluator.siteNow( { tz: '', offset: '-540' }, new Date( '2026-10-20T03:00:00Z' ) ).minutes, 18 * 60 );
+	assert.equal( evaluator.siteNow( { tz: '', offset: 330 }, new Date( '2026-10-20T03:00:00Z' ) ).minutes, 8 * 60 + 30 );
+
+	// A cached page generated during AKDT (-480) keeps the right offset after
+	// the 1 November 2026 change to AKST (-540) via the transition table.
+	const anchorageChange = Date.UTC( 2026, 10, 1, 10, 0, 0 ) / 1000;
+	const table = { tz: '', offset: -480, offsets: [ [ 0, -480 ], [ anchorageChange, -540 ] ] };
+	assert.equal( evaluator.fallbackOffset( table, new Date( '2026-10-20T20:00:00Z' ) ), -480 );
+	assert.equal( evaluator.fallbackOffset( table, new Date( '2026-11-02T20:00:00Z' ) ), -540 );
+	assert.equal( evaluator.siteNow( table, new Date( '2026-11-02T20:00:00Z' ) ).minutes, 11 * 60 );
+
+	// The IANA path is DST-correct on its own: 10:00 AKDT at the same instant.
+	assert.equal( evaluator.siteNow( { tz: 'America/Anchorage' }, new Date( '2026-10-20T18:00:00Z' ) ).minutes, 10 * 60 );
+	assert.equal( evaluator.siteNow( { tz: 'America/Anchorage' }, new Date( '2026-11-02T18:00:00Z' ) ).minutes, 9 * 60 );
+} );
+
+test( 'admin timezone helpers parse WordPress manual offsets and overnight hints', function () {
+	assert.equal( adminEvaluator.utcOffsetMinutes( 'UTC-9' ), -540 );
+	assert.equal( adminEvaluator.utcOffsetMinutes( 'UTC+5.75' ), 345 );
+	assert.equal( adminEvaluator.utcOffsetMinutes( 'UTC+0' ), 0 );
+	assert.equal( adminEvaluator.utcOffsetMinutes( 'UTC' ), null );
+	assert.equal( adminEvaluator.utcOffsetMinutes( 'America/Anchorage' ), null );
+	assert.equal( adminEvaluator.isOvernight( '22:00', '02:00' ), true );
+	assert.equal( adminEvaluator.isOvernight( '09:00', '17:00' ), false );
+	assert.equal( adminEvaluator.isOvernight( '09:00', '24:00' ), false );
+	assert.equal( adminEvaluator.rangeHint( '22:00', '02:00' ), 'closes 02:00 the next day' );
+	assert.equal( adminEvaluator.rangeHint( '18:00', '00:00' ), 'until midnight' );
+	assert.equal( adminEvaluator.rangeHint( '09:00', '17:00' ), '' );
+	assert.deepEqual( adminEvaluator.copyTargets( 'weekdays' ), [ 2, 3, 4, 5 ] );
+	assert.deepEqual( adminEvaluator.copyTargets( 'all' ), [ 2, 3, 4, 5, 6, 0 ] );
+} );
+
+test( 'UK bank-holiday generator applies Easter and substitute-day rules', function () {
+	assert.equal( adminEvaluator.easterSunday( 2026 ).toISOString().slice( 0, 10 ), '2026-04-05' );
+	assert.equal( adminEvaluator.easterSunday( 2027 ).toISOString().slice( 0, 10 ), '2027-03-28' );
+	const ew2026 = adminEvaluator.standardBankHolidays( 2026, 'england-wales' ).map( function ( h ) { return h.date; } );
+	assert.ok( ew2026.includes( '2026-04-03' ), 'Good Friday 2026' );
+	assert.ok( ew2026.includes( '2026-04-06' ), 'Easter Monday 2026' );
+	assert.ok( ew2026.includes( '2026-12-25' ), 'Christmas Day 2026 is a Friday' );
+	assert.ok( ew2026.includes( '2026-12-28' ), 'Boxing Day 2026 falls on a Saturday and moves to Monday' );
+	const ew2027 = adminEvaluator.standardBankHolidays( 2027, 'england-wales' ).map( function ( h ) { return h.date; } );
+	assert.ok( ew2027.includes( '2027-12-27' ) && ew2027.includes( '2027-12-28' ), 'Christmas 2027 weekend moves to Monday and Tuesday' );
+	const scot2022 = adminEvaluator.standardBankHolidays( 2022, 'scotland' ).map( function ( h ) { return h.date; } );
+	assert.ok( scot2022.includes( '2022-01-03' ) && scot2022.includes( '2022-01-04' ), 'Scotland 2022 New Year weekend moves to Monday and Tuesday' );
+	assert.ok( ! scot2022.includes( '2022-04-18' ), 'Scotland has no Easter Monday' );
+} );
+
+test( 'midnight closes, translatable joiners, 24:00 display, and entity handling match PHP', function () {
+	const cfg = baseConfig();
+	cfg.schedule[ 1 ] = { closed: 0, ranges: [ { open: '18:00', close: '00:00' } ] };
+	assert.equal( evaluator.buildStatus( cfg, { ymd: '2026-08-03', dow: 1, minutes: 20 * 60 } ).sub, 'Closes at 00:00' );
+	// Just after midnight on a full day, the next midnight keeps its date.
+	const fullDay = baseConfig();
+	fullDay.schedule[ 1 ] = { closed: 0, ranges: [ { open: '00:00', close: '24:00' } ] };
+	assert.equal( evaluator.buildStatus( fullDay, { ymd: '2026-08-03', dow: 1, minutes: 5 } ).sub, 'Closes at Tue 4 Aug, 00:00' );
+
+	assert.equal( evaluator.fmtRanges( cfg, [ { open: '10:00', close: '24:00' } ] ), '10:00 – 23:59' );
+	assert.equal( evaluator.fmtRanges( cfg, [ { open: '00:00', close: '24:00' } ] ), 'Open 24 hours' );
+	cfg.formats = { range: '%1$s to %2$s', ranges: ' / ', dateNote: '%1$s [%2$s]', dateTime: '%2$s on %1$s' };
+	assert.equal( evaluator.fmtRanges( cfg, [ { open: '09:00', close: '12:00' }, { open: '13:00', close: '17:00' } ] ), '09:00 to 12:00 / 13:00 to 17:00' );
+	cfg.options.show_upcoming = 1;
+	cfg.holidays[ '2026-08-20' ] = { closed: 0, ranges: [ { open: '10:00', close: '14:00' } ], label: 'Late' };
+	assert.equal( evaluator.buildStatus( cfg, { ymd: '2026-08-03', dow: 1, minutes: 12 * 60 } ).upcoming, 'Thu 20 Aug [Late]: 10:00 to 14:00' );
+	cfg.schedule[ 1 ] = { closed: 0, ranges: [ { open: '22:00', close: '02:00' } ] };
+	assert.equal( evaluator.buildStatus( cfg, { ymd: '2026-08-03', dow: 1, minutes: 23 * 60 } ).sub, 'Closes at 02:00 on Tue 4 Aug' );
+
+	// sanitize_text_field() stores "<3" as "&lt;3"; esc_html() does not double-encode.
+	assert.equal( evaluator.escapeHtml( 'Open till late &lt;3 & more' ), 'Open till late &lt;3 &amp; more' );
+	assert.equal( evaluator.escapeHtml( '<b>' ), '&lt;b&gt;' );
+	assert.equal( evaluator.decodeEntities( 'Open till late &lt;3 &amp; more' ), 'Open till late <3 & more' );
+} );
+
+test( 'admin preview helpers avoid unchanged live-region rewrites', function () {
 	global.window.IBOH.defaultLabels = { open: "We're open" };
 	const holidayRows = [
 		{ querySelector: function () { return { value: '2026-08-03' }; } },
@@ -441,34 +521,6 @@ test( 'admin preview retains yesterday carry and avoids unchanged live-region re
 	assert.equal( adminEvaluator.shouldIncludePreviewDate( '2026-08-03', '2026-08-05' ), false );
 	assert.equal( adminEvaluator.previewLabelValue( 'open', '   ' ), "We're open" );
 	assert.equal( adminEvaluator.previewLabelValue( 'open', 'Come in' ), 'Come in' );
-
-	global.window.IBOH.previewCarry = {
-		'2026-08-03': { closed: 1, ranges: [], label: 'Closed override' }
-	};
-	const suppressed = baseConfig();
-	suppressed.schedule[ 1 ] = {
-		closed: 0,
-		ranges: [ { open: '22:00', close: '02:00' } ]
-	};
-	suppressed.holidays = adminEvaluator.previewCarryHolidays();
-	assert.equal(
-		evaluator.evaluate( suppressed, { ymd: '2026-08-04', dow: 2, minutes: 30 } ).open,
-		false
-	);
-
-	global.window.IBOH.previewCarry = {
-		'2026-08-03': {
-			closed: 0,
-			ranges: [ { open: '22:00', close: '02:00' } ],
-			label: 'Late opening'
-		}
-	};
-	const overnight = baseConfig();
-	overnight.holidays = adminEvaluator.previewCarryHolidays();
-	assert.equal(
-		evaluator.evaluate( overnight, { ymd: '2026-08-04', dow: 2, minutes: 30 } ).open,
-		true
-	);
 
 	function fakeElement() {
 		let text = '';

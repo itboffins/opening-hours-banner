@@ -145,7 +145,8 @@ function add_settings_error( $setting, $code, $message, $type = 'error' ) {
 }
 
 function esc_html( $value ) {
-	return htmlspecialchars( (string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
+	// Like WordPress: existing entities are not encoded a second time.
+	return htmlspecialchars( (string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', false );
 }
 
 function esc_attr( $value ) {
@@ -211,18 +212,12 @@ function delete_option( $key ) {
 	return true;
 }
 
-class IBOH_Timezone {
-	public static function now() {
-		return $GLOBALS['iboh_test_clock']->setTimezone( wp_timezone() );
-	}
+function wp_timezone_string() {
+	return wp_timezone()->getName();
+}
 
-	public static function iana() {
-		return wp_timezone()->getName();
-	}
-
-	public static function offset_minutes() {
-		return (int) ( wp_timezone()->getOffset( self::now() ) / 60 );
-	}
+function esc_html_x( $text ) {
+	return esc_html( $text );
 }
 
 class IBOH_Frontend {
@@ -232,6 +227,7 @@ class IBOH_Frontend {
 }
 
 require_once dirname( __DIR__ ) . '/includes/class-iboh-settings.php';
+require_once dirname( __DIR__ ) . '/includes/class-iboh-timezone.php';
 require_once dirname( __DIR__ ) . '/includes/class-iboh-config.php';
 require_once dirname( __DIR__ ) . '/includes/class-iboh-evaluator.php';
 require_once dirname( __DIR__ ) . '/includes/class-iboh-shortcode.php';
@@ -307,6 +303,19 @@ function iboh_test_private( $class, $method, $args ) {
 	$reflection = new ReflectionMethod( $class, $method );
 	$reflection->setAccessible( true );
 	return $reflection->invokeArgs( null, $args );
+}
+
+/**
+ * Run the Settings API sanitizer as a complete form submission would.
+ */
+function iboh_test_sanitize( $input ) {
+	$input[ IBOH_Settings::FORM_MARKER ]          = 1;
+	$input[ IBOH_Settings::FORM_COMPLETE_MARKER ] = 1;
+	return IBOH_Settings::sanitize( $input );
+}
+
+function iboh_test_error_codes() {
+	return array_column( $GLOBALS['iboh_test_errors'], 'code' );
 }
 
 // Continuous, overnight, touching, and 24/7 evaluation.
@@ -525,7 +534,7 @@ iboh_test_same( 1, $settings['schedule'][1]['closed'], 'Malformed stored ranges 
 iboh_test_same( 1, $settings['schedule'][2]['closed'], 'An open weekday with no valid ranges should normalize to closed' );
 
 $GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'holidays' => array(
@@ -538,18 +547,20 @@ $saved = IBOH_Settings::sanitize(
 );
 iboh_test_same( array(), $saved['holidays'], 'Malformed dates should be rejected before modern PHP date parsing' );
 
-// Yesterday is hidden from admin callers, retained for evaluators, and survives a save.
+// Yesterday is hidden from table callers, retained for evaluators, and is
+// authoritative in a save: the editor shows it whenever it still matters, so
+// a row the owner removed stays removed.
 $GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array(
 	'holidays' => array(
 		'2026-08-03' => array( 'closed' => 1, 'ranges' => array(), 'label' => 'Yesterday closed' ),
 		'2026-08-04' => array( 'closed' => 1, 'ranges' => array(), 'label' => 'Today closed' ),
 	),
 );
-iboh_test_check( ! isset( IBOH_Settings::all( false )['holidays']['2026-08-03'] ), 'Admin settings should hide yesterday' );
+iboh_test_check( ! isset( IBOH_Settings::all( false )['holidays']['2026-08-03'] ), 'Table settings should hide yesterday' );
 iboh_test_check( isset( IBOH_Settings::all( true )['holidays']['2026-08-03'] ), 'Evaluator settings should retain yesterday' );
-$saved = IBOH_Settings::sanitize( array( 'schedule' => iboh_test_closed_schedule(), 'holidays' => array() ) );
-iboh_test_check( isset( $saved['holidays']['2026-08-03'] ), 'Saving after midnight should preserve a yesterday closed override' );
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize( array( 'schedule' => iboh_test_closed_schedule(), 'holidays' => array() ) );
+iboh_test_check( ! isset( $saved['holidays']['2026-08-03'] ), 'A yesterday override absent from the submitted form should be removed, not re-seeded' );
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'holidays' => array(
@@ -576,7 +587,7 @@ $input = array(
 	'holidays' => array(),
 );
 $input['schedule'][1] = array( 'closed' => 0, 'ranges' => $ranges );
-$saved = IBOH_Settings::sanitize( $input );
+$saved = iboh_test_sanitize( $input );
 iboh_test_same( IBOH_Settings::MAX_RANGES, count( $saved['schedule'][1]['ranges'] ), 'Server should cap ranges per day' );
 iboh_test_check(
 	in_array( 'iboh_ranges_truncated', array_column( $GLOBALS['iboh_test_errors'], 'code' ), true ),
@@ -589,7 +600,7 @@ for ( $index = 0; $index < 201; $index++ ) {
 	$date = iboh_test_add_days( '2026-08-04', $index );
 	$holidays[] = array( 'date' => $date, 'closed' => 1, 'ranges' => array(), 'label' => '' );
 }
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'holidays' => $holidays,
@@ -616,14 +627,14 @@ $GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array( 'holidays' => $raw_holiday
 iboh_test_same( 201, count( IBOH_Settings::all( true )['holidays'] ), 'Read normalization should cap 200 current/future dates plus yesterday carry' );
 
 $defaults = IBOH_Settings::defaults();
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'labels'   => $defaults['labels'],
 	)
 );
 iboh_test_same( array(), $saved['labels'], 'Untouched translated defaults should be stored sparsely' );
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'labels'   => array( 'open' => 'Come on in' ),
@@ -645,7 +656,7 @@ iboh_test_same(
 );
 
 $translated_defaults = IBOH_Settings::defaults();
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'labels'   => array( 'open' => "We're open" ),
@@ -658,7 +669,7 @@ iboh_test_same(
 	IBOH_Settings::all()['labels']['open'],
 	'An intentional source-language label should survive on a translated site'
 );
-$saved = IBOH_Settings::sanitize(
+$saved = iboh_test_sanitize(
 	array(
 		'schedule' => iboh_test_closed_schedule(),
 		'labels'   => $translated_defaults['labels'],
@@ -760,6 +771,201 @@ $block = new IBOH_Block();
 $block->init();
 iboh_test_same( 'iboh/opening-hours', $GLOBALS['iboh_test_registered_block']['name'], 'Dynamic block should register under its public name' );
 iboh_test_same( 3, $GLOBALS['iboh_test_registered_block']['args']['api_version'], 'Dynamic block should use iframe-compatible Block API version 3' );
+
+// --- 1.2.0: schedule timezone -------------------------------------------
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+iboh_test_same( 'America/Anchorage', IBOH_Timezone::sanitize_setting( 'America/Anchorage' ), 'IANA names are valid timezone settings' );
+iboh_test_same( 'UTC-9', IBOH_Timezone::sanitize_setting( 'UTC-9' ), 'WordPress manual offsets are valid timezone settings' );
+iboh_test_same( 'UTC+5.75', IBOH_Timezone::sanitize_setting( ' UTC+5.75 ' ), 'Quarter-hour manual offsets are valid and trimmed' );
+iboh_test_same( '', IBOH_Timezone::sanitize_setting( 'Mars/Phobos' ), 'Unknown zone names fall back to the site timezone' );
+iboh_test_same( '', IBOH_Timezone::sanitize_setting( 'UTC-15' ), 'Out-of-range manual offsets are rejected' );
+iboh_test_same( -540, IBOH_Timezone::manual_offset_minutes( 'UTC-9' ), 'UTC-9 is minus 540 minutes' );
+iboh_test_same( 345, IBOH_Timezone::manual_offset_minutes( 'UTC+5.75' ), 'UTC+5.75 is 345 minutes' );
+iboh_test_same( null, IBOH_Timezone::manual_offset_minutes( 'UTC' ), 'Bare UTC is an IANA zone, not a manual offset' );
+$fixed = IBOH_Timezone::from_setting( 'UTC-9' );
+iboh_test_same( '-09:00', $fixed->getName(), 'A manual offset resolves to a fixed-offset zone' );
+iboh_test_same( '', IBOH_Timezone::iana( $fixed ), 'A fixed offset has no IANA name for the browser' );
+iboh_test_same( true, IBOH_Timezone::is_fixed_offset( $fixed ), 'A manual offset is reported as fixed' );
+iboh_test_same( 'UTC-9', IBOH_Timezone::label( $fixed ), 'Fixed offsets get a WordPress-style label' );
+iboh_test_same( 'UTC+5:30', IBOH_Timezone::label( IBOH_Timezone::from_setting( 'UTC+5.5' ) ), 'Half-hour offsets are labelled with minutes' );
+iboh_test_same( 'America/Anchorage', IBOH_Timezone::label( IBOH_Timezone::from_setting( 'America/Anchorage' ) ), 'IANA zones are labelled by name' );
+iboh_test_same( false, IBOH_Timezone::is_fixed_offset( new DateTimeZone( 'America/Anchorage' ) ), 'A city zone is not a fixed offset' );
+iboh_test_same( 'UTC', IBOH_Timezone::from_setting( '' )->getName(), 'An empty setting follows the site timezone' );
+
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array( 'options' => array( 'timezone' => 'UTC-9' ) );
+$public_config = IBOH_Config::data();
+iboh_test_same( '', $public_config['tz'], 'A UTC-9 schedule timezone ships no IANA name' );
+iboh_test_same( -540, $public_config['offset'], 'A UTC-9 schedule timezone ships a -540 minute offset' );
+iboh_test_same( array( array( 0, -540 ) ), $public_config['offsets'], 'A fixed offset ships a single-row transition table' );
+iboh_test_same( 'UTC-9', $public_config['options']['timezone'], 'The timezone setting is normalized into the public options' );
+
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array( 'options' => array( 'timezone' => 'America/Anchorage' ) );
+$public_config = IBOH_Config::data();
+iboh_test_same( 'America/Anchorage', $public_config['tz'], 'An IANA schedule timezone overrides the site timezone for the browser' );
+iboh_test_check( count( $public_config['offsets'] ) >= 2, 'A DST zone ships upcoming offset transitions for the no-Intl fallback' );
+
+// 2026-10-20 17:30Z is 09:30 AKDT in Anchorage (open) but 08:30 at UTC-9 (closed).
+$cfg = iboh_test_config();
+$cfg['schedule'][2] = array( 'closed' => 0, 'ranges' => array( array( 'open' => '09:00', 'close' => '17:00' ) ) );
+$instant = new DateTimeImmutable( '2026-10-20 17:30:00', new DateTimeZone( 'UTC' ) );
+iboh_test_same( true, IBOH_Evaluator::state( $cfg, $instant )['open'], 'With America/Anchorage selected the schedule follows Alaska daylight time' );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array( 'options' => array( 'timezone' => 'UTC-9' ) );
+$state = IBOH_Evaluator::state( $cfg, $instant );
+iboh_test_same( false, $state['open'], 'With UTC-9 selected the same instant is an hour earlier and still closed' );
+iboh_test_same( 'Opens today at 09:00', $state['sub'], 'The fixed-offset evaluation reports the next opening' );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+
+// --- 1.2.0: sanitize() -----------------------------------------------------
+$GLOBALS['iboh_test_errors'] = array();
+$input = array( 'schedule' => iboh_test_closed_schedule(), 'holidays' => array(), 'options' => array( 'timezone' => 'Mars/Phobos' ) );
+$input['schedule'][1] = array( 'closed' => '0', 'ranges' => array( array( 'open' => '09:00', 'close' => '17:00' ) ) );
+$input['schedule'][2] = array( 'closed' => '1', 'ranges' => array( array( 'open' => '10:00', 'close' => '16:00' ) ) );
+$input['schedule'][3] = array( 'closed' => '0', 'ranges' => array( array( 'open' => '09:00', 'close' => '' ) ) );
+$saved = iboh_test_sanitize( $input );
+iboh_test_same( 0, $saved['schedule'][1]['closed'], 'A radio value of "0" means open' );
+iboh_test_same( 1, $saved['schedule'][2]['closed'], 'A radio value of "1" means closed' );
+iboh_test_same( '10:00', $saved['schedule'][2]['ranges'][0]['open'], 'A closed day keeps its hours for when it reopens' );
+iboh_test_same( 1, $saved['schedule'][3]['closed'], 'An open day with only an incomplete range is saved closed' );
+iboh_test_check( in_array( 'iboh_auto_closed', iboh_test_error_codes(), true ), 'Auto-closing a day reports a settings warning' );
+iboh_test_check( in_array( 'iboh_ranges_invalid', iboh_test_error_codes(), true ), 'A half-filled range reports a settings warning' );
+iboh_test_same( '', $saved['options']['timezone'], 'An unknown timezone setting is stored as "follow the site"' );
+
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array( 'options' => array( 'timezone' => 'Europe/London' ) );
+$settings = IBOH_Settings::all();
+iboh_test_same( 'Europe/London', $settings['options']['timezone'], 'all() exposes the stored timezone setting' );
+$cfg_closed_keeps = IBOH_Settings::all();
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array(
+	'schedule' => array( 1 => array( 'closed' => 1, 'ranges' => array( array( 'open' => '09:00', 'close' => '17:00' ) ) ) ),
+);
+iboh_test_same( '09:00', IBOH_Settings::all()['schedule'][1]['ranges'][0]['open'], 'all() keeps the hours of a closed day' );
+iboh_test_same( false, IBOH_Evaluator::state( IBOH_Config::data(), new DateTimeImmutable( '2026-08-03 10:00:00', new DateTimeZone( 'UTC' ) ) )['open'], 'Retained hours on a closed day do not make it open' );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+
+$GLOBALS['iboh_test_errors'] = array();
+$saved = iboh_test_sanitize(
+	array(
+		'schedule' => iboh_test_closed_schedule(),
+		'holidays' => array(
+			array( 'date' => '2026-12-25', 'closed' => '1', 'label' => 'Christmas Day', 'source' => 'bank_holiday' ),
+			array( 'date' => '2026-12-25', 'closed' => '0', 'label' => 'Collections', 'ranges' => array( array( 'open' => '10:00', 'close' => '14:00' ) ) ),
+			array( 'date' => '2026-11-05', 'closed' => '0', 'ranges' => array( array( 'open' => '09:00', 'close' => '12:00' ) ) ),
+			array( 'date' => '2026-11-05', 'closed' => '1', 'label' => 'Stock take' ),
+		),
+	)
+);
+iboh_test_same( 'bank_holiday', $saved['holidays']['2026-12-25']['source'], 'A bank holiday wins over a manual row for the same date' );
+iboh_test_same( 'Stock take', $saved['holidays']['2026-11-05']['label'], 'Otherwise the last row for a date wins' );
+iboh_test_check( in_array( 'iboh_duplicate_dates', iboh_test_error_codes(), true ), 'Duplicate dates report a settings warning' );
+
+$GLOBALS['iboh_test_errors'] = array();
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array( 'banner' => array( 'enabled' => 1 ), 'holidays' => array( '2026-12-25' => array( 'closed' => 1, 'ranges' => array(), 'label' => 'Keep me' ) ) );
+$saved = IBOH_Settings::sanitize( array( IBOH_Settings::FORM_MARKER => 1, 'schedule' => iboh_test_closed_schedule(), 'holidays' => array() ) );
+iboh_test_same( 'Keep me', $saved['holidays']['2026-12-25']['label'], 'An editor form that lost its sentinel (max_input_vars) leaves the stored option untouched' );
+iboh_test_check( in_array( 'iboh_form_truncated', iboh_test_error_codes(), true ), 'A truncated form reports an error instead of saving' );
+
+// Input without the editor marker is accepted: a page loaded before the
+// upgrade, or an already-sanitized value passed back through update_option().
+$GLOBALS['iboh_test_errors'] = array();
+$legacy = array( 'schedule' => iboh_test_closed_schedule(), 'holidays' => array( array( 'date' => '2026-12-25', 'closed' => '1', 'label' => 'Legacy form' ) ), 'banner' => array( 'enabled' => '1' ) );
+$saved  = IBOH_Settings::sanitize( $legacy );
+iboh_test_same( 'Legacy form', $saved['holidays']['2026-12-25']['label'], 'A pre-upgrade form without the editor marker still saves' );
+iboh_test_check( ! in_array( 'iboh_form_truncated', iboh_test_error_codes(), true ), 'A pre-upgrade form is not reported as truncated' );
+$again = IBOH_Settings::sanitize( $saved );
+iboh_test_same( $saved, $again, 'Sanitizing an already-sanitized option is a no-op (update_option / add_option double pass)' );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+
+// Saving a timezone whose calendar is behind keeps dates the editor never showed.
+$GLOBALS['iboh_test_timezone'] = new DateTimeZone( 'UTC' );
+$GLOBALS['iboh_test_clock']    = new DateTimeImmutable( '2026-10-21 01:00:00', new DateTimeZone( 'UTC' ) );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array(
+	'holidays' => array(
+		'2026-10-19' => array( 'closed' => 1, 'ranges' => array(), 'label' => 'Two days ago in New York' ),
+		'2026-10-20' => array( 'closed' => 1, 'ranges' => array(), 'label' => 'Staff training' ),
+		'2026-10-22' => array( 'closed' => 1, 'ranges' => array(), 'label' => 'Later' ),
+	),
+);
+// The editor (UTC) showed 2026-10-20 as yesterday plus 2026-10-22, but not
+// 2026-10-19. The owner picks New York, where it is still 2026-10-20 21:00,
+// so 2026-10-19 is yesterday there and must survive the save.
+$form = array(
+	'schedule' => iboh_test_closed_schedule(),
+	'options'  => array( 'timezone' => 'America/New_York' ),
+	'holidays' => array(
+		array( 'date' => '2026-10-20', 'closed' => '1', 'label' => 'Staff training' ),
+		array( 'date' => '2026-10-22', 'closed' => '1', 'label' => 'Later' ),
+	),
+);
+$saved = iboh_test_sanitize( $form );
+iboh_test_check( isset( $saved['holidays']['2026-10-20'] ), 'The date that is today in the new timezone is saved from the form' );
+iboh_test_check( isset( $saved['holidays']['2026-10-19'] ), 'A date the editor could not show, but which is yesterday in the new timezone, is kept' );
+// Same timezone: the form is authoritative, so a removed yesterday row stays removed.
+$form['options']['timezone'] = '';
+$form['holidays']            = array( array( 'date' => '2026-10-22', 'closed' => '1', 'label' => 'Later' ) );
+$saved = iboh_test_sanitize( $form );
+iboh_test_check( ! isset( $saved['holidays']['2026-10-20'] ), 'Without a timezone change, a yesterday row removed in the editor is not brought back' );
+iboh_test_check( ! isset( $saved['holidays']['2026-10-19'] ), 'Without a timezone change, rows older than yesterday are dropped' );
+$GLOBALS['iboh_test_clock']    = new DateTimeImmutable( '2026-08-04 12:00:00', new DateTimeZone( 'UTC' ) );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+
+// Backward-compatible zone names survive a tzdata rename.
+iboh_test_same( 'Europe/Kiev', IBOH_Timezone::sanitize_setting( 'Europe/Kiev' ), 'A backward-compatible IANA name is still a valid setting' );
+
+// The PHP fallback shows stored entities as characters (esc_html does not double-encode).
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array(
+	'_labels_are_overrides' => 1,
+	'labels'                => array( 'closed' => 'Closed &ndash; back soon &lt;3' ),
+	'schedule'              => iboh_test_closed_schedule(),
+);
+$status_html = IBOH_Shortcode::status_html();
+iboh_test_check( false !== strpos( $status_html, 'Closed &ndash; back soon &lt;3' ), 'Stored entities reach the fallback markup once-encoded' );
+iboh_test_check( false === strpos( $status_html, '&amp;ndash;' ) && false === strpos( $status_html, '&amp;lt;' ), 'Stored entities are not double-encoded in the fallback' );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
+
+// --- 1.2.0: display -----------------------------------------------------
+$cfg = iboh_test_config();
+$cfg['schedule'][1] = array( 'closed' => 0, 'ranges' => array( array( 'open' => '18:00', 'close' => '00:00' ) ) );
+$state = IBOH_Evaluator::state( $cfg, new DateTimeImmutable( '2026-08-03 20:00:00', new DateTimeZone( 'UTC' ) ) );
+iboh_test_same( 'Closes at 00:00', $state['sub'], 'An evening midnight close is shown as a bare time, not as tomorrow' );
+$cfg['schedule'][1] = array( 'closed' => 0, 'ranges' => array( array( 'open' => '00:00', 'close' => '24:00' ) ) );
+$state = IBOH_Evaluator::state( $cfg, new DateTimeImmutable( '2026-08-03 00:05:00', new DateTimeZone( 'UTC' ) ) );
+iboh_test_same( 'Closes at Tue 4 Aug, 00:00', $state['sub'], 'Just after midnight, a close at the next midnight keeps its date so it cannot read as already past' );
+
+$cfg = iboh_test_config();
+$cfg['options']['show_upcoming'] = 1;
+$cfg['formats'] = array( 'range' => '%1$s to %2$s', 'dateNote' => '%1$s [%2$s]' );
+$cfg['holidays']['2026-08-20'] = array( 'closed' => 0, 'ranges' => array( array( 'open' => '10:00', 'close' => '24:00' ) ), 'label' => 'Late' );
+$cfg['holidays']['2026-08-21'] = array( 'closed' => 0, 'ranges' => array( array( 'open' => '00:00', 'close' => '24:00' ) ), 'label' => '' );
+$state = IBOH_Evaluator::state( $cfg, new DateTimeImmutable( '2026-08-03 12:00:00', new DateTimeZone( 'UTC' ) ) );
+iboh_test_check( false !== strpos( $state['upcoming'], 'Thu 20 Aug [Late]: 10:00 to 23:59' ), 'Translatable range and note patterns are honoured, and 24:00 displays as 23:59' );
+iboh_test_check( false !== strpos( $state['upcoming'], 'Fri 21 Aug: Open 24 hours' ), 'A full 00:00-24:00 day shows the 24-hour label' );
+iboh_test_check( isset( IBOH_Config::data()['formats']['range'] ), 'Public config ships the translatable joining patterns' );
+
+$cfg = iboh_test_config();
+$cfg['options']['show_upcoming'] = 1;
+$cfg['holidays']['2026-08-10'] = array( 'closed' => 1, 'ranges' => array(), 'label' => '', 'source' => 'bank_holiday' );
+$cfg['holidays']['2026-08-12'] = array( 'closed' => 1, 'ranges' => array(), 'label' => '', 'source' => 'bank_holiday' );
+$cfg['holidays']['2026-09-02'] = array( 'closed' => 1, 'ranges' => array(), 'label' => 'Manual' );
+$instant = new DateTimeImmutable( '2026-08-03 12:00:00', new DateTimeZone( 'UTC' ) );
+$cfg['options']['bank_holiday_mode'] = 'seven_days';
+$upcoming = IBOH_Evaluator::state( $cfg, $instant )['upcoming'];
+iboh_test_check( false !== strpos( $upcoming, 'Mon 10 Aug' ) && false === strpos( $upcoming, 'Wed 12 Aug' ) && false !== strpos( $upcoming, 'Manual' ), 'seven_days shows a bank holiday 7 days out, hides one 9 days out, and keeps manual dates' );
+$cfg['options']['bank_holiday_mode'] = 'none';
+$upcoming = IBOH_Evaluator::state( $cfg, $instant )['upcoming'];
+iboh_test_check( false === strpos( $upcoming, 'Aug' ) && false !== strpos( $upcoming, 'Manual' ), 'none hides every bank holiday from advance notices but keeps manual dates' );
+$cfg['options']['bank_holiday_mode'] = 'all';
+iboh_test_check( false !== strpos( IBOH_Evaluator::state( $cfg, $instant )['upcoming'], 'Wed 12 Aug' ), 'all shows every future bank holiday' );
+
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array(
+	'schedule' => array(
+		1 => array( 'closed' => 0, 'ranges' => array( array( 'open' => '09:00', 'close' => '17:00' ) ) ),
+		6 => array( 'closed' => 0, 'ranges' => array( array( 'open' => '00:00', 'close' => '24:00' ) ) ),
+	),
+);
+$table_html = IBOH_Shortcode::table_html();
+iboh_test_check( false !== strpos( $table_html, '<tr data-iboh-dow="1"><th scope="row" class="iboh-day">Monday</th><td class="iboh-times">09:00 – 17:00</td>' ), 'The hours table starts with Monday and formats a range' );
+iboh_test_check( false !== strpos( $table_html, 'data-iboh-dow="6"><th scope="row" class="iboh-day">Saturday</th><td class="iboh-times">Open 24 hours</td>' ), 'The hours table shows the 24-hour label' );
+iboh_test_check( false !== strpos( $table_html, 'data-iboh-dow="0"><th scope="row" class="iboh-day">Sunday</th><td class="iboh-times">Closed</td></tr></tbody></table>' ), 'The hours table ends with a closed Sunday' );
+$GLOBALS['iboh_test_options'][ IBOH_OPTION ] = array();
 
 // Multisite uninstall removes the per-site option without direct SQL.
 $GLOBALS['iboh_test_multisite']      = true;

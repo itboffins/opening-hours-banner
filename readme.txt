@@ -4,7 +4,7 @@ Tags: opening hours, business hours, store hours, open closed, live status
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.16
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,7 +22,8 @@ The opening-hours table and live banner both work from the same schedule you sav
 * **Dynamic opening-hours table.** Show your regular week and upcoming changes on any page with a block or shortcode.
 * **Live open/closed banner.** Tell customers if you are open, closed, opening soon, or closing soon.
 * **Flexible banner layout.** Keep the notice sticky or let it scroll away, and choose whether a top notice makes room or sits over the page.
-* **Easy weekly hours.** Set your regular week with simple time pickers, lunch breaks, and one-click weekday copying.
+* **Easy weekly hours.** Mark each day Open or Closed, set times with simple pickers, add lunch breaks, and copy Monday's hours across the week in one click.
+* **Your own timezone.** Follow the WordPress site timezone or pick a city for the schedule itself (for example America/Anchorage), with a live clock on the settings screen so you can see the time the plugin is using.
 * **Public special dates & one-off changes.** Add bank holidays, Christmas closures, early finishes, special Saturdays, or appointment-only dates.
 * **UK bank-holiday helper.** Add the standard England & Wales, Scotland, or Northern Ireland bank holidays as closed dates for the year.
 * **Upcoming changes.** Tell customers about future closures or special hours before the day arrives.
@@ -31,7 +32,7 @@ The opening-hours table and live banner both work from the same schedule you sav
 * **Automatic cleanup.** Expired special dates drop out after any overnight opening has finished.
 * **Special-dates-only mode.** Turn your regular week off entirely for pop-ups, events, or by-appointment businesses.
 * **Works with fast/cached sites.** The page hours and live banner stay fresh even when WordPress or your host caches the page.
-* **Uses your WordPress timezone.** Handles daylight saving automatically.
+* **Daylight saving handled.** Choose a city timezone (not a fixed UTC offset) and the clocks change automatically.
 * **Overnight hours.** Late-night venues are handled, such as 22:00-02:00.
 * **Genuinely free & self-hosted.** No external API, no account, no tracking, and nothing sent off-site.
 
@@ -48,16 +49,25 @@ The opening-hours table and live banner both work from the same schedule you sav
 The page table and notice bar use your saved schedule in the visitor's browser. That lets the open/closed message and today's row stay current without you editing the page.
 
 = Does it still work if my site is cached or uses WP Rocket? =
-Yes. If your site uses caching to stay fast, the opening-hours table and open/closed banner still update from the hours you set.
+Yes. The open/closed banner, today's row, and upcoming-date notices are worked out in the visitor's browser, so they stay correct on a cached page. When you *edit* the hours, the plugin asks common caching plugins to refresh so the new schedule reaches visitors.
 
 = Which timezone is used? =
-Your site's WordPress timezone (Settings -> General). If you use a named timezone, such as Europe/London, daylight saving is handled automatically.
+By default, your site's WordPress timezone (Settings -> General). The **Timezone** card on the Live Opening Hours screen can instead pin the schedule to a city of its own. The "Right now it is..." line under the customer preview shows the time the plugin is working from, so you can check it at a glance. Always choose a city (such as Europe/London or America/Anchorage) rather than a "UTC-9"-style offset: a fixed offset never changes for daylight saving, so the plugin would run an hour out for part of the year.
+
+= The open/closed clock is an hour out. How do I fix it? =
+Your timezone is almost certainly set to a fixed UTC offset. For example, Alaska is UTC-9 in winter but UTC-8 in summer, so a site set to "UTC-9" runs an hour behind from March to November. Open **Live Opening Hours**, look at the "Right now it is..." line under the preview, and in the Timezone card choose the nearest city (America/Anchorage for Alaska). The plugin warns you whenever a fixed offset is in use.
+
+= Why did my change not appear on the site straight away? =
+The live open/closed status always updates in the visitor's browser. The schedule itself, though, is part of the page, so if you use a page-caching plugin the new hours appear once that cache is refreshed. Saving asks WP Rocket, W3 Total Cache, WP Super Cache, WP Fastest Cache, LiteSpeed Cache, SiteGround Optimizer, Autoptimize, Cache Enabler, Breeze, Hummingbird, and Nginx Helper to clear automatically; other caches, including host-level caches, may need clearing by hand.
 
 = Does it use my WordPress time format? =
 Yes. Displayed hours support the wall-clock tokens `G`, `H`, `g`, `h`, `i`, `s`, `a`, and `A`, plus backslash-escaped literals. Other PHP date-format characters remain literal because a saved opening time is not a complete timestamp from which timezone- or instant-dependent tokens can be calculated reliably.
 
 = Can I quickly add bank holidays? =
-Yes. In **Live Opening Hours**, use the bank-holiday helper inside *Public special dates & one-off changes*. Choose England & Wales, Scotland, or Northern Ireland, pick the year, and add the standard dates as closed special dates. One-off public holidays can still be added manually.
+Yes. In **Live Opening Hours**, use the bank-holiday helper inside *Holidays & one-off dates*. Choose England & Wales, Scotland, or Northern Ireland, pick the year, and add the standard dates as closed dates. One-off public holidays can still be added manually.
+
+= How do I set different hours for one day, or mark a day closed? =
+In *Your regular week*, every day has an Open / Closed switch. Choose Open and the day gets a time you can edit (add another for a lunch break); choose Closed and the day shows "Closed all day". For a single date, add it under *Holidays & one-off dates* and pick "Closed all day" or "Open with different hours".
 
 = Can I set a lunch break or split hours? =
 Yes. Add more than one time range to a day, for example 09:00-12:00 and 13:00-17:00.
@@ -86,6 +96,19 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 3. The dynamic opening-hours table from the block or shortcode.
 
 == Changelog ==
+
+= 1.2.0 =
+* New: a Timezone card lets the schedule follow the WordPress site timezone or a city of its own, with a live "Right now it is..." clock and a warning whenever a fixed UTC offset (which never follows daylight saving) is in use.
+* New: redesigned settings screen. Every weekday and special date has a clear Open / Closed switch; choosing Open fills in hours straight away, hours are kept when a day is closed, dates show their weekday and move into date order once edited, bank holidays are badged, overnight times say so, the preview honours "Show notice bar", unsaved changes are flagged, and there is a Save button next to the preview.
+* New: "Copy Monday's hours" can fill Tuesday-Friday, Tuesday-Saturday, or every day, asks before overwriting, and confirms what it did.
+* Fix: an open day or date saved without complete hours, a half-filled time, or a duplicated date now produces a clear warning instead of being changed silently.
+* Fix: a very large form that PHP truncates (max_input_vars) is refused with an explanation instead of deleting special dates and resetting the notice bar.
+* Fix: yesterday's special date stays in the editor until midnight, so it can be corrected or removed while it can still affect the early hours of today; saving after switching to a timezone that is behind keeps the dates that are still current there.
+* Fix: a close at midnight is shown as "Closes at 00:00" in the afternoon and evening rather than with tomorrow's date, and a stored 24:00 closing time now opens in the editor as a midnight close instead of an empty field that was dropped on save.
+* Fix: browsers without working time-zone support follow daylight saving on cached pages via a shipped transition table.
+* Fix: saving asks common page caches to refresh so edited hours reach visitors.
+* Fix: labels and notes containing "<" or HTML entities such as `&ndash;` show the same characters in the PHP fallback and in the live browser text.
+* i18n: time-range, date/time, date/note, and notice separators are translatable.
 
 = 1.1.16 =
 * Compatibility: tested with WordPress 7.1 RC3 and migrated the dynamic block to Block API version 3 for the always-iframed post editor.
@@ -161,6 +184,9 @@ This plugin and its bundled assets, including logo.png, are distributed under th
 * Initial release: weekly schedule editor, split hours, holidays/special dates, customer notice bar, hours table block, and shortcode.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Adds a timezone setting with a live clock and daylight-saving warning, and a clearer settings screen with an Open / Closed switch for every day and date. Existing hours are preserved.
 
 = 1.1.16 =
 Adds WordPress 7.1 editor compatibility and hardens special-date validation on modern PHP.

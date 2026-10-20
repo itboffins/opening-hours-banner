@@ -1,466 +1,935 @@
 # Copyright (C) 2026 IT Boffins
-# This file is distributed under the GPL-2.0-or-later license.
+# This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: ITBoffins Live Opening Hours 1.1.16\n"
-"Report-Msgid-Bugs-To: https://itboffins.com/\n"
-"Last-Translator: IT Boffins <hello@itboffins.com>\n"
-"Language-Team: IT Boffins <hello@itboffins.com>\n"
+"Project-Id-Version: ITBoffins Live Opening Hours Banner & Table 1.2.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/itboffins-live-opening-hours\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-04T00:00:00+00:00\n"
+"POT-Creation-Date: 2026-10-20T22:15:15+02:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: itboffins-live-opening-hours\n"
 
-#. Default banner label: shown when open.
-msgid "We're open"
+#. Plugin Name of the plugin
+#: itboffins-live-opening-hours.php
+msgid "ITBoffins Live Opening Hours Banner & Table"
 msgstr ""
 
-#. Default banner label: shown when closed.
-msgid "Sorry, we're closed"
+#. Plugin URI of the plugin
+#: itboffins-live-opening-hours.php
+msgid "https://itboffins.com/plugins/itboffins-live-opening-hours/"
 msgstr ""
 
-#. Default banner label: open, with closing time. %s = time.
-msgid "Closes at %s"
+#. Description of the plugin
+#: itboffins-live-opening-hours.php
+msgid "A live open/closed banner and opening-hours table powered by one locally stored WordPress schedule."
 msgstr ""
 
-#. Default banner label: closed, opens later today. %s = time.
-msgid "Opens today at %s"
+#. Author of the plugin
+#: itboffins-live-opening-hours.php
+#: includes/class-iboh-admin.php:883
+msgid "IT Boffins"
 msgstr ""
 
-#. Default banner label: closed, opens another day. %1$s = weekday, %2$s = time.
-msgid "Opens %1$s at %2$s"
+#. Author URI of the plugin
+#: itboffins-live-opening-hours.php
+msgid "https://itboffins.com/"
 msgstr ""
 
-msgid "Opening soon"
-msgstr ""
-
-msgid "Closing soon"
-msgstr ""
-
-msgid "Closed"
-msgstr ""
-
-msgid "Open 24 hours"
-msgstr ""
-
-#. Heading above the list of upcoming special dates.
-msgid "Upcoming dates"
-msgstr ""
-
-#. Upcoming closed special date. %s = date (and optional label).
-msgid "Closed %s"
-msgstr ""
-
-#. Upcoming closed special-date list. %s = human-readable list of dates.
-msgid "%s we are closed"
-msgstr ""
-
-#. Upcoming special hours. %1$s = date (and optional label), %2$s = hours.
-msgid "%1$s: %2$s"
-msgstr ""
-
-msgid "Live Opening Hours"
-msgstr ""
-
-msgid "Tell customers when you are open, closed, or taking a day off - without making them hunt for it."
-msgstr ""
-
-msgid "Customer preview"
-msgstr ""
-
-msgid "This is what your customers will see. Save when you are happy."
-msgstr ""
-
-msgid "Your regular week"
-msgstr ""
-
-msgid "Set the hours you usually keep. Add another row for a lunch break, evening shift, or late-night opening."
-msgstr ""
-
-msgid "Use my regular weekly hours"
-msgstr ""
-
-msgid "Turn this off if you only open on certain dates, pop-ups, or appointments."
-msgstr ""
-
-msgid "Copy Monday to the working week"
-msgstr ""
-
-msgid "Public special dates & one-off changes"
-msgstr ""
-
-msgid "Publish bank holidays, Christmas closures, early finishes, special Saturdays, or any date that does not follow your normal week."
-msgstr ""
-
-msgid "Public special-date notices"
-msgstr ""
-
-msgid "Only mention a change on the day"
-msgstr ""
-
-msgid "Tell customers about upcoming changes in advance"
-msgstr ""
-
-msgid "Public bank-holiday notices"
-msgstr ""
-
-msgid "Show bank holidays only when they are within 7 days"
-msgstr ""
-
-msgid "Show all future bank holidays"
-msgstr ""
-
-msgid "Do not show bank holidays in upcoming notices"
-msgstr ""
-
-msgid "Closed on bank holidays?"
-msgstr ""
-
-msgid "Add the usual UK bank holidays as public closed dates. Choose your part of the UK and the year, then save."
-msgstr ""
-
-msgid "One-off public holidays are not added automatically, so add those separately if you need them."
-msgstr ""
-
-msgid "Bank holiday area"
-msgstr ""
-
-msgid "England & Wales"
-msgstr ""
-
-msgid "Scotland"
-msgstr ""
-
-msgid "Northern Ireland"
-msgstr ""
-
-msgid "Bank holiday year"
-msgstr ""
-
-msgid "Add public closed bank holidays"
-msgstr ""
-
-msgid "Added: %1$d. Replaced existing dates: %2$d. Already in your list: %3$d. Save changes when you are happy."
-msgstr ""
-
-msgid "Those bank holidays are already in your list."
-msgstr ""
-
-msgid "New Year's Day"
-msgstr ""
-
-msgid "2 January"
-msgstr ""
-
-msgid "Good Friday"
-msgstr ""
-
-msgid "Easter Monday"
-msgstr ""
-
-msgid "Early May bank holiday"
-msgstr ""
-
-msgid "Spring bank holiday"
-msgstr ""
-
-msgid "Summer bank holiday"
-msgstr ""
-
-msgid "Christmas Day"
-msgstr ""
-
-msgid "Boxing Day"
-msgstr ""
-
-msgid "St Patrick's Day"
-msgstr ""
-
-msgid "Battle of the Boyne"
-msgstr ""
-
-msgid "St Andrew's Day"
-msgstr ""
-
-msgid "Add a public special date"
-msgstr ""
-
-msgid "Customer notice bar"
-msgstr ""
-
-msgid "Show notice bar"
-msgstr ""
-
-msgid "Show customers whether you are open or closed"
-msgstr ""
-
-msgid "Where it sits"
-msgstr ""
-
-msgid "Top of the page"
-msgstr ""
-
-msgid "Bottom of the page"
-msgstr ""
-
-msgid "While customers scroll"
-msgstr ""
-
-msgid "Keep the notice visible as customers scroll"
-msgstr ""
-
-msgid "Turn this off if you only want the notice to appear where it is placed on the page."
-msgstr ""
-
-msgid "Top of page spacing"
-msgstr ""
-
-msgid "Make room for the notice when it is at the top"
-msgstr ""
-
-msgid "Turn this off if your theme already has space for it, or you want the notice to sit over the page."
-msgstr ""
-
-msgid "Close button"
-msgstr ""
-
-msgid "Let customers close the notice"
-msgstr ""
-
-msgid "Next opening time"
-msgstr ""
-
-msgid "Show the next opening or closing time beside the main message"
-msgstr ""
-
-msgid "Soon message"
-msgstr ""
-
-msgid "minutes"
-msgstr ""
-
-msgid "When you are this close to opening or closing, show the friendly \"Opening soon\" or \"Closing soon\" message. Set to 0 to turn it off."
-msgstr ""
-
-msgid "Colours"
-msgstr ""
-
-msgid "Open"
-msgstr ""
-
-msgid "Text"
-msgstr ""
-
-msgid "Your wording"
-msgstr ""
-
-msgid "Make the public messages sound like your business. Keep any placeholders shown in the field help."
-msgstr ""
-
-msgid "Main message when you are open"
-msgstr ""
-
-msgid "Main message when you are closed"
-msgstr ""
-
-#. Admin help text. %s = time.
-msgid "Closing time line (%s = time)"
-msgstr ""
-
-#. Admin help text. %s = time.
-msgid "Opening later today line (%s = time)"
-msgstr ""
-
-#. Admin help text. %1$s = day, %2$s = time.
-msgid "Opening another day line (%1$s = day, %2$s = time)"
-msgstr ""
-
-msgid "Message just before opening"
-msgstr ""
-
-msgid "Message just before closing"
-msgstr ""
-
-msgid "Message for a 24-hour day"
-msgstr ""
-
-msgid "Heading above upcoming changes"
-msgstr ""
-
-#. Admin help text. %s = date.
-msgid "One closed date (%s = date)"
-msgstr ""
-
-#. Admin help text. %s = date list.
-msgid "Several closed dates (%s = date list)"
-msgstr ""
-
-#. Admin help text. %1$s = date, %2$s = hours.
-msgid "One date with different hours (%1$s = date, %2$s = hours)"
-msgstr ""
-
-msgid "Need hours on a page?"
-msgstr ""
-
-msgid "Use the block in the editor, or paste one of these shortcodes:"
-msgstr ""
-
-msgid "Remove"
-msgstr ""
-
-msgid "Nothing to show today"
-msgstr ""
-
-msgid "Pick a date, or remove this row."
-msgstr ""
-
-msgid "+ Add another time"
-msgstr ""
-
-msgid "Public note (optional)"
-msgstr ""
-
-msgid "Dismiss"
-msgstr ""
-
+#: includes/class-iboh-admin.php:40
 msgid "Settings"
 msgstr ""
 
-#. Admin notice. %d = number of discarded special dates.
+#: includes/class-iboh-admin.php:50
+#: includes/class-iboh-admin.php:51
+#: includes/class-iboh-admin.php:251
+#: assets/editor.js:24
+msgid "Live Opening Hours"
+msgstr ""
+
+#: includes/class-iboh-admin.php:134
+#: includes/class-iboh-admin.php:547
+#: includes/class-iboh-admin.php:677
+#: includes/class-iboh-config.php:55
+#: includes/class-iboh-shortcode.php:160
+#: includes/class-iboh-shortcode.php:196
+msgid "Closed"
+msgstr ""
+
+#: includes/class-iboh-admin.php:140
+#: includes/class-iboh-admin.php:741
+#: includes/class-iboh-admin.php:783
+#: includes/class-iboh-admin.php:834
+#: includes/class-iboh-admin.php:852
+msgid "Remove"
+msgstr ""
+
+#: includes/class-iboh-admin.php:141
+msgid "Nothing to show today"
+msgstr ""
+
+#: includes/class-iboh-admin.php:142
+msgid "The notice bar is turned off. Customers only see your hours where you add the block or shortcode."
+msgstr ""
+
+#: includes/class-iboh-admin.php:143
+msgid "Pick a date, or remove this row."
+msgstr ""
+
+#: includes/class-iboh-admin.php:144
+msgid "That date has already passed. Pick a later date, or remove this row."
+msgstr ""
+
+#: includes/class-iboh-admin.php:145
+msgid "This date is already in the list. Edit that entry or remove this one."
+msgstr ""
+
+#: includes/class-iboh-admin.php:146
+msgid "Enter both an opening and a closing time, or remove this time."
+msgstr ""
+
+#: includes/class-iboh-admin.php:147
+#: includes/class-iboh-admin.php:691
+#: includes/class-iboh-admin.php:805
+#: includes/class-iboh-admin.php:867
+msgid "Add opening hours"
+msgstr ""
+
+#: includes/class-iboh-admin.php:148
+#: includes/class-iboh-admin.php:691
+#: includes/class-iboh-admin.php:805
+msgid "+ Add another time"
+msgstr ""
+
+#. translators: %s: closing time.
+#: includes/class-iboh-admin.php:150
+#, php-format
+msgid "closes %s the next day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:151
+msgid "until midnight"
+msgstr ""
+
+#. translators: %d: maximum number of time ranges.
+#: includes/class-iboh-admin.php:153
+#: includes/class-iboh-admin.php:696
+#: includes/class-iboh-admin.php:810
+#, php-format
+msgid "You can add up to %d times per day."
+msgstr ""
+
+#. translators: %1$d: range number, %2$s: weekday or special date.
+#: includes/class-iboh-admin.php:155
+#: includes/class-iboh-admin.php:725
+#, php-format
+msgid "Time %1$d for %2$s"
+msgstr ""
+
+#. translators: %1$s: weekday or special date, %2$d: range number.
+#: includes/class-iboh-admin.php:157
+#: includes/class-iboh-admin.php:727
+#, php-format
+msgid "Opening time for %1$s, time %2$d"
+msgstr ""
+
+#. translators: %1$s: weekday or special date, %2$d: range number.
+#: includes/class-iboh-admin.php:159
+#: includes/class-iboh-admin.php:729
+#, php-format
+msgid "Closing time for %1$s, time %2$d"
+msgstr ""
+
+#. translators: %1$d: range number, %2$s: weekday or special date.
+#: includes/class-iboh-admin.php:161
+#: includes/class-iboh-admin.php:731
+#, php-format
+msgid "Remove time %1$d for %2$s"
+msgstr ""
+
+#. translators: %s: weekday or special date.
+#: includes/class-iboh-admin.php:163
+#: includes/class-iboh-admin.php:665
+#: includes/class-iboh-admin.php:764
+#, php-format
+msgid "Opening times for %s"
+msgstr ""
+
+#. translators: %s: special date in YYYY-MM-DD format.
+#: includes/class-iboh-admin.php:165
+#: includes/class-iboh-admin.php:762
+#, php-format
+msgid "the date %s"
+msgstr ""
+
+#: includes/class-iboh-admin.php:166
+msgid "a new date"
+msgstr ""
+
+#. translators: %d: maximum number of special dates.
+#: includes/class-iboh-admin.php:168
+#: includes/class-iboh-admin.php:422
+#, php-format
+msgid "You can add up to %d dates."
+msgstr ""
+
+#: includes/class-iboh-admin.php:169
+msgid "Limit reached."
+msgstr ""
+
+#: includes/class-iboh-admin.php:170
+msgid "The date limit has been reached. Remove a date before adding another."
+msgstr ""
+
+#. translators: %1$d: number of dates added, %2$d: number of existing dates replaced, %3$d: number of dates already in the list.
+#: includes/class-iboh-admin.php:172
+#, php-format
+msgid "Added: %1$d. Replaced existing dates: %2$d. Already in your list: %3$d. Click Save changes when you are happy."
+msgstr ""
+
+#: includes/class-iboh-admin.php:173
+msgid "Those bank holidays are already in your list."
+msgstr ""
+
+#. translators: %s: description of the days that were filled, e.g. "Tuesday to Friday".
+#: includes/class-iboh-admin.php:175
+#, php-format
+msgid "Copied Monday's hours to %s. Click Save changes when you are happy."
+msgstr ""
+
+#. translators: %s: description of the days that will be overwritten, e.g. "Tuesday to Friday".
+#: includes/class-iboh-admin.php:177
+#, php-format
+msgid "Replace the hours already set for %s with Monday's hours?"
+msgstr ""
+
+#. translators: %1$s: time, %2$s: weekday name, %3$s: timezone label.
+#: includes/class-iboh-admin.php:179
+#: includes/class-iboh-admin.php:284
+#, php-format
+msgid "Right now it is %1$s on %2$s in %3$s."
+msgstr ""
+
+#. translators: %s: timezone label such as "UTC-9".
+#: includes/class-iboh-admin.php:181
+#: includes/class-iboh-admin.php:346
+#, php-format
+msgid "%s is a fixed offset, so it never changes for daylight saving. If your area changes its clocks, choose the nearest city instead (for example America/Anchorage for Alaska, or Europe/London for the UK)."
+msgstr ""
+
+#: includes/class-iboh-admin.php:182
+#: includes/class-iboh-admin.php:269
+msgid "Unsaved changes"
+msgstr ""
+
+#: includes/class-iboh-admin.php:184
+msgid "New Year's Day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:185
+msgid "2 January"
+msgstr ""
+
+#: includes/class-iboh-admin.php:186
+msgid "Good Friday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:187
+msgid "Easter Monday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:188
+msgid "Early May bank holiday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:189
+msgid "Spring bank holiday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:190
+msgid "Summer bank holiday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:191
+msgid "Christmas Day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:192
+msgid "Boxing Day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:193
+msgid "St Patrick's Day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:194
+msgid "Battle of the Boyne"
+msgstr ""
+
+#: includes/class-iboh-admin.php:195
+msgid "St Andrew's Day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:252
+msgid "Tell customers when you are open, closed, or taking a day off - without making them hunt for it."
+msgstr ""
+
+#: includes/class-iboh-admin.php:257
+msgid "Your notice bar is already live on the site using the default hours (Monday to Friday, 09:00 to 17:00). Set your real hours below and click Save changes."
+msgstr ""
+
+#: includes/class-iboh-admin.php:268
+msgid "Customer preview"
+msgstr ""
+
+#: includes/class-iboh-admin.php:291
+msgid "Change timezone"
+msgstr ""
+
+#: includes/class-iboh-admin.php:293
+msgid "The preview updates as you edit. Nothing changes on your site until you click Save changes."
+msgstr ""
+
+#: includes/class-iboh-admin.php:294
+#: includes/class-iboh-admin.php:600
+msgid "Save changes"
+msgstr ""
+
+#: includes/class-iboh-admin.php:298
+msgid "Timezone"
+msgstr ""
+
+#: includes/class-iboh-admin.php:299
+msgid "Your opening hours are read in this timezone. Choose a city rather than a UTC offset so the clocks change automatically for daylight saving."
+msgstr ""
+
+#: includes/class-iboh-admin.php:302
+msgid "Timezone for your hours"
+msgstr ""
+
+#. translators: %s: the WordPress site timezone label.
+#: includes/class-iboh-admin.php:309
+#, php-format
+msgid "Same as your WordPress site (%s)"
+msgstr ""
+
+#. translators: %s: link to the WordPress General Settings screen.
+#: includes/class-iboh-admin.php:336
+#, php-format
+msgid "Your WordPress site timezone is set under %s."
+msgstr ""
+
+#: includes/class-iboh-admin.php:337
+msgid "Settings → General"
+msgstr ""
+
+#: includes/class-iboh-admin.php:358
+msgid "Your regular week"
+msgstr ""
+
+#: includes/class-iboh-admin.php:359
+msgid "Choose Open or Closed for each day. An open day needs at least one time; add a second time for a lunch break or an evening session. A closing time earlier than the opening time means you close after midnight."
+msgstr ""
+
+#: includes/class-iboh-admin.php:360
+#: includes/class-iboh-admin.php:394
+#: includes/class-iboh-admin.php:557
+msgid "Public information:"
+msgstr ""
+
+#: includes/class-iboh-admin.php:360
+msgid "These hours are published on your site. Do not include confidential information."
+msgstr ""
+
+#: includes/class-iboh-admin.php:365
+msgid "Use a regular weekly schedule"
+msgstr ""
+
+#: includes/class-iboh-admin.php:367
+msgid "Turn this off if you only open on specific dates, such as pop-ups, events, or appointments."
+msgstr ""
+
+#: includes/class-iboh-admin.php:369
+msgid "Weekly hours are off. Only the dates in the next section decide when you are open."
+msgstr ""
+
+#: includes/class-iboh-admin.php:373
+msgid "Same hours on several days?"
+msgstr ""
+
+#: includes/class-iboh-admin.php:374
+msgid "Days to copy Monday's hours to"
+msgstr ""
+
+#: includes/class-iboh-admin.php:376
+msgid "Tuesday to Friday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:377
+msgid "Tuesday to Saturday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:378
+msgid "Every day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:380
+msgid "Copy Monday's hours"
+msgstr ""
+
+#: includes/class-iboh-admin.php:392
+msgid "Holidays & one-off dates"
+msgstr ""
+
+#: includes/class-iboh-admin.php:393
+msgid "Dates that do not follow your normal week: bank holidays, Christmas, an early finish, a special Saturday opening. Each date is either closed all day or open with its own hours. Past dates are removed automatically."
+msgstr ""
+
+#: includes/class-iboh-admin.php:394
+msgid "Dates, hours, and notes here are shown to visitors. Do not include confidential information."
+msgstr ""
+
+#: includes/class-iboh-admin.php:397
+msgid "+ Add a date"
+msgstr ""
+
+#: includes/class-iboh-admin.php:398
+msgid "or"
+msgstr ""
+
+#: includes/class-iboh-admin.php:401
+msgid "Bank holiday area"
+msgstr ""
+
+#: includes/class-iboh-admin.php:403
+msgid "England & Wales"
+msgstr ""
+
+#: includes/class-iboh-admin.php:404
+msgid "Scotland"
+msgstr ""
+
+#: includes/class-iboh-admin.php:405
+msgid "Northern Ireland"
+msgstr ""
+
+#: includes/class-iboh-admin.php:409
+msgid "Bank holiday year"
+msgstr ""
+
+#: includes/class-iboh-admin.php:416
+msgid "Add UK bank holidays as closed"
+msgstr ""
+
+#: includes/class-iboh-admin.php:443
+msgid "No dates yet. Add one above, or add the UK bank holidays in one go."
+msgstr ""
+
+#: includes/class-iboh-admin.php:446
+msgid "Tell customers in advance?"
+msgstr ""
+
+#: includes/class-iboh-admin.php:449
+msgid "Only mention a change on the day itself"
+msgstr ""
+
+#: includes/class-iboh-admin.php:453
+msgid "Show upcoming dates ahead of time in the notice bar and the hours table"
+msgstr ""
+
+#: includes/class-iboh-admin.php:458
+msgid "Bank holidays in those advance notices"
+msgstr ""
+
+#: includes/class-iboh-admin.php:462
+msgid "Only when they are within the next 7 days"
+msgstr ""
+
+#: includes/class-iboh-admin.php:466
+msgid "Show all future bank holidays"
+msgstr ""
+
+#: includes/class-iboh-admin.php:470
+msgid "Never show bank holidays in advance (they still apply on the day)"
+msgstr ""
+
+#: includes/class-iboh-admin.php:476
+msgid "Customer notice bar"
+msgstr ""
+
+#: includes/class-iboh-admin.php:477
+msgid "The live \"open\" or \"closed\" message shown on every page of your site."
+msgstr ""
+
+#: includes/class-iboh-admin.php:480
+msgid "Show notice bar"
+msgstr ""
+
+#: includes/class-iboh-admin.php:484
+msgid "Show customers whether you are open or closed"
+msgstr ""
+
+#: includes/class-iboh-admin.php:489
+msgid "Where it sits"
+msgstr ""
+
+#: includes/class-iboh-admin.php:492
+msgid "Top of the page"
+msgstr ""
+
+#: includes/class-iboh-admin.php:493
+msgid "Bottom of the page"
+msgstr ""
+
+#: includes/class-iboh-admin.php:498
+msgid "While customers scroll"
+msgstr ""
+
+#: includes/class-iboh-admin.php:502
+msgid "Keep the notice visible as customers scroll"
+msgstr ""
+
+#: includes/class-iboh-admin.php:504
+msgid "Turn this off if you only want the notice to appear where it is placed on the page."
+msgstr ""
+
+#: includes/class-iboh-admin.php:508
+msgid "Top of page spacing"
+msgstr ""
+
+#: includes/class-iboh-admin.php:512
+msgid "Make room for the notice when it is at the top"
+msgstr ""
+
+#: includes/class-iboh-admin.php:514
+msgid "Turn this off if your theme already has space for it, or you want the notice to sit over the page."
+msgstr ""
+
+#: includes/class-iboh-admin.php:518
+msgid "Close button"
+msgstr ""
+
+#: includes/class-iboh-admin.php:522
+msgid "Let customers close the notice"
+msgstr ""
+
+#: includes/class-iboh-admin.php:527
+msgid "Next opening time"
+msgstr ""
+
+#: includes/class-iboh-admin.php:531
+msgid "Show the next opening or closing time beside the main message"
+msgstr ""
+
+#: includes/class-iboh-admin.php:536
+msgid "Soon message"
+msgstr ""
+
+#: includes/class-iboh-admin.php:539
+msgid "minutes"
+msgstr ""
+
+#: includes/class-iboh-admin.php:540
+msgid "When you are this close to opening or closing, show the friendly \"Opening soon\" or \"Closing soon\" message. Set to 0 to turn it off."
+msgstr ""
+
+#: includes/class-iboh-admin.php:544
+msgid "Colours"
+msgstr ""
+
+#: includes/class-iboh-admin.php:546
+#: includes/class-iboh-admin.php:676
+msgid "Open"
+msgstr ""
+
+#: includes/class-iboh-admin.php:548
+msgid "Text"
+msgstr ""
+
+#: includes/class-iboh-admin.php:555
+msgid "Your wording"
+msgstr ""
+
+#: includes/class-iboh-admin.php:556
+msgid "Make the public messages sound like your business. Keep any placeholders shown in the field help. Leave a field blank to use the standard wording."
+msgstr ""
+
+#: includes/class-iboh-admin.php:557
+msgid "This wording is published on your site. Do not include confidential information."
+msgstr ""
+
+#: includes/class-iboh-admin.php:560
+msgid "Open and closed messages"
+msgstr ""
+
+#: includes/class-iboh-admin.php:561
+msgid "Main message when you are open"
+msgstr ""
+
+#: includes/class-iboh-admin.php:562
+msgid "Main message when you are closed"
+msgstr ""
+
+#. translators: %s: closing time placeholder shown to administrators.
+#: includes/class-iboh-admin.php:564
+#, php-format
+msgid "Closing time line (%s = time)"
+msgstr ""
+
+#. translators: %s: opening time placeholder shown to administrators.
+#: includes/class-iboh-admin.php:566
+#, php-format
+msgid "Opening later today line (%s = time)"
+msgstr ""
+
+#. translators: %1$s: weekday placeholder, %2$s: opening time placeholder shown to administrators.
+#: includes/class-iboh-admin.php:568
+#, php-format
+msgid "Opening another day line (%1$s = day, %2$s = time)"
+msgstr ""
+
+#: includes/class-iboh-admin.php:569
+msgid "Message just before opening"
+msgstr ""
+
+#: includes/class-iboh-admin.php:570
+msgid "Message just before closing"
+msgstr ""
+
+#: includes/class-iboh-admin.php:571
+msgid "Message for a 24-hour day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:573
+msgid "Upcoming date messages"
+msgstr ""
+
+#: includes/class-iboh-admin.php:574
+msgid "Heading above upcoming changes"
+msgstr ""
+
+#. translators: %s: date placeholder shown to administrators.
+#: includes/class-iboh-admin.php:576
+#, php-format
+msgid "One closed date (%s = date)"
+msgstr ""
+
+#. translators: %s: date list placeholder shown to administrators.
+#: includes/class-iboh-admin.php:578
+#, php-format
+msgid "Several closed dates (%s = date list)"
+msgstr ""
+
+#. translators: %1$s: date placeholder, %2$s: opening-hours placeholder shown to administrators.
+#: includes/class-iboh-admin.php:580
+#, php-format
+msgid "One date with different hours (%1$s = date, %2$s = hours)"
+msgstr ""
+
+#: includes/class-iboh-admin.php:606
+msgid "Need hours on a page?"
+msgstr ""
+
+#: includes/class-iboh-admin.php:607
+msgid "Use the block in the editor, or paste one of these shortcodes:"
+msgstr ""
+
+#. translators: %s: weekday name.
+#: includes/class-iboh-admin.php:667
+#, php-format
+msgid "%s: open or closed?"
+msgstr ""
+
+#: includes/class-iboh-admin.php:702
+#: includes/class-iboh-admin.php:791
+#: includes/class-iboh-admin.php:860
+msgid "Closed all day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:737
+#: includes/class-iboh-admin.php:830
+msgctxt "between an opening and a closing time"
+msgid "to"
+msgstr ""
+
+#: includes/class-iboh-admin.php:739
+#: includes/class-iboh-admin.php:832
+#: includes/class-iboh-settings.php:133
+#: includes/class-iboh-shortcode.php:201
+msgid "Open 24 hours"
+msgstr ""
+
+#: includes/class-iboh-admin.php:771
+#: includes/class-iboh-admin.php:843
+msgid "Date"
+msgstr ""
+
+#: includes/class-iboh-admin.php:775
+#: includes/class-iboh-admin.php:847
+msgid "Bank holiday"
+msgstr ""
+
+#: includes/class-iboh-admin.php:777
+msgid "Yesterday - shown until midnight because it can still affect the early hours of today"
+msgstr ""
+
+#: includes/class-iboh-admin.php:780
+#: includes/class-iboh-admin.php:849
+msgid "Note shown to customers (optional)"
+msgstr ""
+
+#: includes/class-iboh-admin.php:781
+#: includes/class-iboh-admin.php:850
+msgid "e.g. Christmas Day"
+msgstr ""
+
+#: includes/class-iboh-admin.php:783
+#: includes/class-iboh-admin.php:852
+msgid "Remove this date"
+msgstr ""
+
+#: includes/class-iboh-admin.php:789
+#: includes/class-iboh-admin.php:858
+msgid "What happens on this date?"
+msgstr ""
+
+#: includes/class-iboh-admin.php:790
+#: includes/class-iboh-admin.php:859
+msgid "Open with different hours"
+msgstr ""
+
+#: includes/class-iboh-admin.php:826
+msgid "Time"
+msgstr ""
+
+#: includes/class-iboh-admin.php:829
+msgid "Opening time"
+msgstr ""
+
+#: includes/class-iboh-admin.php:831
+msgid "Closing time"
+msgstr ""
+
+#: includes/class-iboh-admin.php:834
+msgid "Remove this time"
+msgstr ""
+
+#: includes/class-iboh-admin.php:839
+msgid "New date"
+msgstr ""
+
+#: includes/class-iboh-admin.php:866
+msgid "Opening times for this date"
+msgstr ""
+
+#: includes/class-iboh-admin.php:886
+msgid "Made by IT Boffins"
+msgstr ""
+
+#: includes/class-iboh-config.php:101
+#: includes/class-iboh-evaluator.php:726
+msgctxt "separator between list items"
+msgid ", "
+msgstr ""
+
+#. translators: 1: First list item, 2: Second list item.
+#: includes/class-iboh-config.php:103
+#: includes/class-iboh-evaluator.php:720
+#, php-format
+msgctxt "two-item list"
+msgid "%1$s and %2$s"
+msgstr ""
+
+#. translators: 1: Leading list items, 2: Final list item.
+#: includes/class-iboh-config.php:105
+#: includes/class-iboh-evaluator.php:724
+#, php-format
+msgctxt "last two items in a list of three or more"
+msgid "%1$s, and %2$s"
+msgstr ""
+
+#. translators: 1: opening time, 2: closing time, e.g. "09:00 – 17:00".
+#: includes/class-iboh-config.php:118
+#, php-format
+msgctxt "opening time range"
+msgid "%1$s – %2$s"
+msgstr ""
+
+#. translators: separator between several time ranges on one day.
+#: includes/class-iboh-config.php:120
+msgctxt "separator between time ranges"
+msgid ", "
+msgstr ""
+
+#. translators: 1: short date, 2: time, e.g. "Tue 4 Aug, 02:00".
+#: includes/class-iboh-config.php:122
+#, php-format
+msgctxt "date followed by a time"
+msgid "%1$s, %2$s"
+msgstr ""
+
+#. translators: 1: short date, 2: public note, e.g. "Thu 25 Dec (Christmas Day)".
+#: includes/class-iboh-config.php:124
+#, php-format
+msgctxt "date with a note"
+msgid "%1$s (%2$s)"
+msgstr ""
+
+#. translators: separator between upcoming-date notices in plain text.
+#: includes/class-iboh-config.php:126
+msgctxt "separator between upcoming-date notices"
+msgid " · "
+msgstr ""
+
+#: includes/class-iboh-frontend.php:159
+msgid "Dismiss"
+msgstr ""
+
+#: includes/class-iboh-settings.php:123
+msgid "We're open"
+msgstr ""
+
+#: includes/class-iboh-settings.php:124
+msgid "Sorry, we're closed"
+msgstr ""
+
+#. translators: %s: closing time.
+#: includes/class-iboh-settings.php:126
+#, php-format
+msgid "Closes at %s"
+msgstr ""
+
+#. translators: %s: opening time.
+#: includes/class-iboh-settings.php:128
+#, php-format
+msgid "Opens today at %s"
+msgstr ""
+
+#. translators: %1$s: weekday, %2$s: opening time.
+#: includes/class-iboh-settings.php:130
+#, php-format
+msgid "Opens %1$s at %2$s"
+msgstr ""
+
+#: includes/class-iboh-settings.php:131
+msgid "Opening soon"
+msgstr ""
+
+#: includes/class-iboh-settings.php:132
+msgid "Closing soon"
+msgstr ""
+
+#. translators: heading above the list of upcoming special dates.
+#: includes/class-iboh-settings.php:135
+msgid "Upcoming dates"
+msgstr ""
+
+#. translators: %s = date (and optional label), e.g. "Wed 25 Dec (Christmas)".
+#: includes/class-iboh-settings.php:137
+#, php-format
+msgid "Closed %s"
+msgstr ""
+
+#. translators: %s = human-readable list of dates, e.g. "Wed 25 Dec and Thu 26 Dec".
+#: includes/class-iboh-settings.php:139
+#, php-format
+msgid "%s we are closed"
+msgstr ""
+
+#. translators: %1$s = date (and optional label), %2$s = hours, e.g. "Sat 31 Dec: 10:00 – 14:00".
+#: includes/class-iboh-settings.php:141
+#, php-format
+msgid "%1$s: %2$s"
+msgstr ""
+
+#: includes/class-iboh-settings.php:339
+msgid "Nothing was saved: the browser sent an incomplete form. This usually means the PHP max_input_vars limit is too low for the number of special dates. Ask your host to raise it, or remove some dates and try again."
+msgstr ""
+
+#. translators: %s: list of weekday names and/or dates.
+#: includes/class-iboh-settings.php:476
+#, php-format
+msgid "%s was marked open but had no complete opening hours, so it was saved as closed."
+msgid_plural "%s were marked open but had no complete opening hours, so they were saved as closed."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of time ranges that were dropped.
+#: includes/class-iboh-settings.php:494
+#, php-format
+msgid "%d time range was not saved because its opening or closing time was missing or invalid."
+msgid_plural "%d time ranges were not saved because their opening or closing times were missing or invalid."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: list of dates in YYYY-MM-DD format.
+#: includes/class-iboh-settings.php:512
+#, php-format
+msgid "%s was listed more than once. Only one entry per date is kept: a bank holiday wins, otherwise the last entry."
+msgid_plural "%s were listed more than once. Only one entry per date is kept: a bank holiday wins, otherwise the last entry."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of special dates that were discarded.
+#: includes/class-iboh-settings.php:530
+#, php-format
 msgid "%d special date was not saved because its date was missing or invalid."
 msgid_plural "%d special dates were not saved because their dates were missing or invalid."
 msgstr[0] ""
 msgstr[1] ""
 
-msgid "IT Boffins"
-msgstr ""
-
-msgid "Made by IT Boffins"
-msgstr ""
-
-msgid "Show dynamic opening hours and a live open/closed message."
-msgstr ""
-
-msgid "hours"
-msgstr ""
-
-msgid "open"
-msgstr ""
-
-msgid "business"
-msgstr ""
-
-msgid "Display"
-msgstr ""
-
-msgid "Show"
-msgstr ""
-
-msgid "Hours table"
-msgstr ""
-
-msgid "Open or closed message"
-msgstr ""
-
-msgid "Both"
-msgstr ""
-
-msgid "Public information:"
-msgstr ""
-
-msgid "These hours are published on your site. Do not include confidential information."
-msgstr ""
-
-msgid "Dates, hours, and notes in this section are public and may be shown to visitors. Do not include confidential information."
-msgstr ""
-
-msgid "This wording is published on your site. Do not include confidential information."
-msgstr ""
-
-#. translators: %d: maximum number of time ranges.
-msgid "You can add up to %d time ranges here."
-msgstr ""
-
-#. translators: %d: maximum number of public special dates.
-msgid "You can add up to %d public special dates."
-msgstr ""
-
-msgid "Limit reached."
-msgstr ""
-
-msgid "The public special-date limit has been reached. Remove a date before adding another."
-msgstr ""
-
-#. translators: %s: weekday name or public special-date description.
-msgid "Time ranges for %s"
-msgstr ""
-
-#. translators: %1$d: range number, %2$s: weekday or public special date.
-msgid "Time range %1$d for %2$s"
-msgstr ""
-
-#. translators: %1$s: weekday or public special date, %2$d: range number.
-msgid "Opening time for %1$s, range %2$d"
-msgstr ""
-
-#. translators: %1$s: weekday or public special date, %2$d: range number.
-msgid "Closing time for %1$s, range %2$d"
-msgstr ""
-
-#. translators: %1$d: range number, %2$s: weekday or public special date.
-msgid "Remove time range %1$d for %2$s"
-msgstr ""
-
-#. translators: %s: public special date in YYYY-MM-DD format.
-msgid "public special date %s"
-msgstr ""
-
-msgid "Public special date"
-msgstr ""
-
-msgid "Remove this public special date"
-msgstr ""
-
-msgid "Time range"
-msgstr ""
-
-msgid "Opening time"
-msgstr ""
-
-msgid "Closing time"
-msgstr ""
-
-msgid "Remove this time range"
-msgstr ""
-
-msgid "New public special date"
-msgstr ""
-
-msgid "Time ranges for this public special date"
-msgstr ""
-
 #. translators: 1: number of time ranges not saved, 2: maximum ranges allowed per day/date.
+#: includes/class-iboh-settings.php:548
+#, php-format
 msgid "%1$d time range was not saved because each day or special date is limited to %2$d ranges."
 msgid_plural "%1$d time ranges were not saved because each day or special date is limited to %2$d ranges."
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: number of special dates not saved, 2: maximum stored special dates.
+#: includes/class-iboh-settings.php:567
+#, php-format
 msgid "%1$d special date was not saved because the limit is %2$d dates."
 msgid_plural "%1$d special dates were not saved because the limit is %2$d dates."
 msgstr[0] ""
 msgstr[1] ""
 
-msgctxt "separator between list items"
-msgid ", "
+#: assets/editor.js:25
+msgid "Show dynamic opening hours and a live open/closed message."
 msgstr ""
 
-msgctxt "two-item list"
-msgid "%1$s and %2$s"
+#: assets/editor.js:28
+msgid "hours"
 msgstr ""
 
-msgctxt "last two items in a list of three or more"
-msgid "%1$s, and %2$s"
+#: assets/editor.js:28
+msgid "open"
+msgstr ""
+
+#: assets/editor.js:28
+msgid "business"
+msgstr ""
+
+#: assets/editor.js:42
+msgid "Display"
+msgstr ""
+
+#: assets/editor.js:44
+msgid "Show"
+msgstr ""
+
+#: assets/editor.js:47
+msgid "Hours table"
+msgstr ""
+
+#: assets/editor.js:48
+msgid "Open or closed message"
+msgstr ""
+
+#: assets/editor.js:49
+msgid "Both"
 msgstr ""

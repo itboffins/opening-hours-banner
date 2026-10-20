@@ -2,20 +2,33 @@
 ( function () {
 	'use strict';
 
-	var i18n = ( window.IBOH && window.IBOH.i18n ) || {};
-	var optionName = ( window.IBOH && window.IBOH.optionName ) || 'iboh_settings';
-	var missingDateMessage = i18n.missingDate || 'Choose a date, or remove this special-date row.';
-	var maxRanges = Math.max( 1, parseInt( ( window.IBOH && window.IBOH.maxRanges ) || 6, 10 ) );
-	var maxHolidays = Math.max( 1, parseInt( ( window.IBOH && window.IBOH.maxHolidays ) || 200, 10 ) );
-	var rangeLimitMessage = i18n.rangeLimit || ( 'You can add up to ' + maxRanges + ' time ranges here.' );
-	var holidayLimitMessage = i18n.holidayLimit || ( 'You can add up to ' + maxHolidays + ' public special dates.' );
+	var IBOH = window.IBOH || {};
+	var i18n = IBOH.i18n || {};
+	var optionName = IBOH.optionName || 'iboh_settings';
+	var maxRanges = Math.max( 1, parseInt( IBOH.maxRanges || 6, 10 ) );
+	var maxHolidays = Math.max( 1, parseInt( IBOH.maxHolidays || 200, 10 ) );
+	var rangeLimitMessage = i18n.rangeLimit || ( 'You can add up to ' + maxRanges + ' times per day.' );
+	var holidayLimitMessage = i18n.holidayLimit || ( 'You can add up to ' + maxHolidays + ' dates.' );
 	var limitReachedMessage = i18n.limitReached || 'Limit reached.';
-	var holidayLimitReachedMessage = i18n.holidayLimitReached || 'The public special-date limit has been reached. Remove a date before adding another.';
+	var holidayLimitReachedMessage = i18n.holidayLimitReached || 'The date limit has been reached. Remove a date before adding another.';
 	var uid = Date.now(); // Unique-enough indices for newly added rows.
+	var dirty = false;
 
 	function nextIndex() {
 		uid += 1;
 		return uid;
+	}
+
+	function text( key, fallback ) {
+		return i18n[ key ] !== undefined && null !== i18n[ key ] ? String( i18n[ key ] ) : fallback;
+	}
+
+	function formatTemplate( template, values ) {
+		var nextValue = 0;
+		return String( template ).replace( /%(?:(\d+)\$)?[sd]/g, function ( match, position ) {
+			var index = position ? parseInt( position, 10 ) - 1 : nextValue++;
+			return values[ index ] === undefined ? match : String( values[ index ] );
+		} );
 	}
 
 	function focusControl( container, selector ) {
@@ -27,6 +40,101 @@
 		return false;
 	}
 
+	/* ---- Timezone -------------------------------------------------------- */
+
+	/* "UTC-9" / "UTC+5.75" (WordPress manual offsets) -> minutes east of UTC. */
+	function utcOffsetMinutes( value ) {
+		var match = /^UTC([+-])(\d{1,2})(?:\.(\d{1,2}))?$/.exec( String( value || '' ) );
+		if ( ! match ) {
+			return null;
+		}
+		var minutes = Math.round( ( parseInt( match[ 2 ], 10 ) + ( match[ 3 ] ? parseFloat( '0.' + match[ 3 ] ) : 0 ) ) * 60 );
+		if ( minutes > 14 * 60 ) {
+			return null;
+		}
+		return '-' === match[ 1 ] ? -minutes : minutes;
+	}
+
+	/* Resolve the timezone the editor should evaluate against right now. */
+	function timezoneSelection() {
+		var select = document.getElementById( 'iboh-timezone' );
+		var value = select ? select.value : String( IBOH.timezoneSetting || '' );
+		if ( ! value ) {
+			return {
+				tz: IBOH.siteTz || '',
+				offset: ( +IBOH.siteOffset ) || 0,
+				offsets: Array.isArray( IBOH.siteOffsets ) ? IBOH.siteOffsets : null,
+				fixed: ! IBOH.siteTz,
+				label: String( IBOH.siteTzLabel || '' )
+			};
+		}
+		var minutes = utcOffsetMinutes( value );
+		if ( null !== minutes ) {
+			return { tz: '', offset: minutes, offsets: [ [ 0, minutes ] ], fixed: true, label: value };
+		}
+		return { tz: value, offset: 0, offsets: null, fixed: false, label: value };
+	}
+
+	function baseFormatConfig() {
+		return {
+			timeFormat: IBOH.timeFormat !== undefined ? IBOH.timeFormat : 'H:i',
+			meridiem: IBOH.meridiem || {},
+			list: IBOH.list || {},
+			formats: IBOH.formats || {},
+			lang: IBOH.lang || '',
+			dateNames: IBOH.dateNames || {},
+			dayNames: IBOH.dayNames || []
+		};
+	}
+
+	function siteNowFor( cfg ) {
+		if ( window.IBOHEval && window.IBOHEval.siteNow ) {
+			return window.IBOHEval.siteNow( cfg );
+		}
+		var now = new Date();
+		return {
+			ymd: ymdFromDate( now ),
+			dow: now.getUTCDay(),
+			minutes: now.getUTCHours() * 60 + now.getUTCMinutes(),
+			epochMs: now.getTime()
+		};
+	}
+
+	function siteTodayYmd() {
+		var selection = timezoneSelection();
+		var cfg = baseFormatConfig();
+		cfg.tz = selection.tz;
+		cfg.offset = selection.offset;
+		cfg.offsets = selection.offsets;
+		return siteNowFor( cfg ).ymd;
+	}
+
+	function renderSiteTime( cfg ) {
+		var clock = document.getElementById( 'iboh-site-time' );
+		var warning = document.getElementById( 'iboh-timezone-warning' );
+		var selection = timezoneSelection();
+		if ( clock && window.IBOHEval ) {
+			var now = siteNowFor( cfg );
+			var dayNames = cfg.dayNames || [];
+			var message = formatTemplate(
+				text( 'siteTime', 'Right now it is %1$s on %2$s in %3$s.' ),
+				[ window.IBOHEval.fmtTime( cfg, now.minutes ), dayNames[ now.dow ] || '', selection.label ]
+			);
+			if ( clock.textContent.trim() !== message ) {
+				clock.textContent = message;
+			}
+		}
+		if ( warning ) {
+			warning.hidden = ! selection.fixed;
+			var label = warning.querySelector( '[data-iboh-tz-label]' );
+			if ( label && label.textContent !== selection.label ) {
+				label.textContent = selection.label;
+			}
+		}
+	}
+
+	/* ---- Limits ---------------------------------------------------------- */
+
 	function setLimitState( button, reached ) {
 		if ( ! button ) {
 			return;
@@ -37,6 +145,19 @@
 			button.setAttribute( 'title', limitReachedMessage );
 		} else {
 			button.removeAttribute( 'title' );
+		}
+	}
+
+	function updateAddRangeLabel( container ) {
+		var body = container ? container.closest( '.iboh-day-body' ) : null;
+		var button = body ? body.querySelector( '.iboh-add-range' ) : null;
+		if ( ! button ) {
+			return;
+		}
+		var hasRange = container.querySelectorAll( '.iboh-range' ).length > 0;
+		var label = hasRange ? text( 'addAnotherTime', '+ Add another time' ) : text( 'addHours', 'Add opening hours' );
+		if ( button.textContent !== label ) {
+			button.textContent = label;
 		}
 	}
 
@@ -55,7 +176,9 @@
 			if ( note.textContent.trim() !== message ) {
 				note.textContent = message;
 			}
+			note.hidden = ! reached;
 		}
+		updateAddRangeLabel( container );
 	}
 
 	function updateAllRangeLimits() {
@@ -84,8 +207,15 @@
 			if ( note.textContent.trim() !== message ) {
 				note.textContent = message;
 			}
+			note.hidden = ! reached;
+		}
+		var empty = document.getElementById( 'iboh-holidays-empty' );
+		if ( empty ) {
+			empty.hidden = list.querySelectorAll( '[data-iboh-holiday]' ).length > 0;
 		}
 	}
+
+	/* ---- Field naming for cloned rows ------------------------------------ */
 
 	function assignFieldName( input, base ) {
 		if ( ! input || ! base || ! input.hasAttribute( 'data-field' ) ) {
@@ -93,84 +223,6 @@
 		}
 		input.name = base + '[' + input.getAttribute( 'data-field' ) + ']';
 		input.removeAttribute( 'data-field' );
-	}
-
-	function formatTemplate( template, values ) {
-		var nextValue = 0;
-		return String( template ).replace( /%(?:(\d+)\$)?[sd]/g, function ( match, position ) {
-			var index = position ? parseInt( position, 10 ) - 1 : nextValue++;
-			return values[ index ] === undefined ? match : String( values[ index ] );
-		} );
-	}
-
-	function rangeContext( container ) {
-		var dayRow = container ? container.closest( '[data-iboh-day]' ) : null;
-		var dayName = dayRow ? dayRow.querySelector( '.iboh-day-name' ) : null;
-		if ( dayName && dayName.textContent.trim() ) {
-			return dayName.textContent.trim();
-		}
-
-		var holiday = container ? container.closest( '[data-iboh-holiday]' ) : null;
-		var dateInput = holiday ? holiday.querySelector( 'input[type="date"]' ) : null;
-		if ( dateInput && dateInput.value ) {
-			return formatTemplate(
-				i18n.publicSpecialDateContext || 'public special date %s',
-				[ dateInput.value ]
-			);
-		}
-		return i18n.newPublicSpecialDateContext || 'New public special date';
-	}
-
-	function syncRangeLabels( container ) {
-		if ( ! container ) {
-			return;
-		}
-		var context = rangeContext( container );
-		Array.prototype.slice.call( container.querySelectorAll( '.iboh-range' ) ).forEach( function ( row, index ) {
-			var rangeNumber = index + 1;
-			var openInput = row.querySelector( '[data-iboh-time-open]' );
-			var closeInput = row.querySelector( '[data-iboh-time-close]' );
-			var removeButton = row.querySelector( '.iboh-remove-range' );
-
-			row.setAttribute( 'aria-label', formatTemplate(
-				i18n.rangeGroupLabel || 'Time range %1$d for %2$s',
-				[ rangeNumber, context ]
-			) );
-			if ( openInput ) {
-				openInput.setAttribute( 'aria-label', formatTemplate(
-					i18n.rangeOpenLabel || 'Opening time for %1$s, range %2$d',
-					[ context, rangeNumber ]
-				) );
-			}
-			if ( closeInput ) {
-				closeInput.setAttribute( 'aria-label', formatTemplate(
-					i18n.rangeCloseLabel || 'Closing time for %1$s, range %2$d',
-					[ context, rangeNumber ]
-				) );
-			}
-			if ( removeButton ) {
-				removeButton.setAttribute( 'aria-label', formatTemplate(
-					i18n.rangeRemoveLabel || 'Remove time range %1$d for %2$s',
-					[ rangeNumber, context ]
-				) );
-			}
-		} );
-	}
-
-	function syncHolidayContext( row ) {
-		if ( ! row ) {
-			return;
-		}
-		var ranges = row.querySelector( '.iboh-ranges' );
-		var context = rangeContext( ranges );
-		row.setAttribute( 'aria-label', context );
-		if ( ranges ) {
-			ranges.setAttribute( 'aria-label', formatTemplate(
-				i18n.timeRangesForContext || 'Time ranges for %s',
-				[ context ]
-			) );
-			syncRangeLabels( ranges );
-		}
 	}
 
 	function holidayBaseFromExistingName( row ) {
@@ -201,6 +253,158 @@
 		}
 	}
 
+	/* ---- Accessible labels ----------------------------------------------- */
+
+	function rangeContext( container ) {
+		var dayRow = container ? container.closest( '[data-iboh-day]' ) : null;
+		var dayName = dayRow ? dayRow.querySelector( '.iboh-day-name' ) : null;
+		if ( dayName && dayName.textContent.trim() ) {
+			return dayName.textContent.trim();
+		}
+
+		var holiday = container ? container.closest( '[data-iboh-holiday]' ) : null;
+		var dateInput = holiday ? holiday.querySelector( 'input[type="date"]' ) : null;
+		if ( dateInput && dateInput.value ) {
+			return formatTemplate( text( 'specialDateContext', 'the date %s' ), [ dateInput.value ] );
+		}
+		return text( 'newSpecialDateContext', 'a new date' );
+	}
+
+	function syncRangeLabels( container ) {
+		if ( ! container ) {
+			return;
+		}
+		var context = rangeContext( container );
+		Array.prototype.slice.call( container.querySelectorAll( '.iboh-range' ) ).forEach( function ( row, index ) {
+			var rangeNumber = index + 1;
+			var openInput = row.querySelector( '[data-iboh-time-open]' );
+			var closeInput = row.querySelector( '[data-iboh-time-close]' );
+			var removeButton = row.querySelector( '.iboh-remove-range' );
+
+			row.setAttribute( 'aria-label', formatTemplate( text( 'rangeGroupLabel', 'Time %1$d for %2$s' ), [ rangeNumber, context ] ) );
+			if ( openInput ) {
+				openInput.setAttribute( 'aria-label', formatTemplate( text( 'rangeOpenLabel', 'Opening time for %1$s, time %2$d' ), [ context, rangeNumber ] ) );
+			}
+			if ( closeInput ) {
+				closeInput.setAttribute( 'aria-label', formatTemplate( text( 'rangeCloseLabel', 'Closing time for %1$s, time %2$d' ), [ context, rangeNumber ] ) );
+			}
+			if ( removeButton ) {
+				removeButton.setAttribute( 'aria-label', formatTemplate( text( 'rangeRemoveLabel', 'Remove time %1$d for %2$s' ), [ rangeNumber, context ] ) );
+			}
+		} );
+	}
+
+	function syncHolidayContext( row ) {
+		if ( ! row ) {
+			return;
+		}
+		var ranges = row.querySelector( '.iboh-ranges' );
+		var context = rangeContext( ranges );
+		row.setAttribute( 'aria-label', context );
+		if ( ranges ) {
+			ranges.setAttribute( 'aria-label', formatTemplate( text( 'timeRangesForContext', 'Opening times for %s' ), [ context ] ) );
+			syncRangeLabels( ranges );
+		}
+		syncHolidayWeekday( row );
+	}
+
+	function syncHolidayWeekday( row ) {
+		var label = row ? row.querySelector( '[data-iboh-holiday-weekday]' ) : null;
+		var dateInput = row ? row.querySelector( 'input[type="date"]' ) : null;
+		if ( ! label ) {
+			return;
+		}
+		var value = '';
+		if ( dateInput && dateInput.value && window.IBOHEval && window.IBOHEval.fmtDate ) {
+			value = window.IBOHEval.fmtDate( baseFormatConfig(), dateInput.value );
+			if ( value === dateInput.value ) {
+				value = '';
+			}
+		}
+		if ( label.textContent !== value ) {
+			label.textContent = value;
+		}
+	}
+
+	/* ---- Open / closed state --------------------------------------------- */
+
+	function isClosed( wrap ) {
+		var closedRadio = wrap ? wrap.querySelector( '.iboh-closed-toggle[value="1"]' ) : null;
+		return !! ( closedRadio && closedRadio.checked );
+	}
+
+	function setClosed( wrap, closed ) {
+		if ( ! wrap ) {
+			return;
+		}
+		var openRadio = wrap.querySelector( '.iboh-closed-toggle[value="0"]' );
+		var closedRadio = wrap.querySelector( '.iboh-closed-toggle[value="1"]' );
+		if ( openRadio ) { openRadio.checked = ! closed; }
+		if ( closedRadio ) { closedRadio.checked = !! closed; }
+		applyOpenClosed( wrap );
+	}
+
+	/* Show the hours for an open day (seeding one time if there is none) or the
+	 * "Closed all day" note. Hours are kept in the DOM while closed so they come
+	 * back if the owner changes their mind. */
+	function applyOpenClosed( wrap, seed ) {
+		if ( ! wrap ) {
+			return;
+		}
+		var closed = isClosed( wrap );
+		var body = wrap.querySelector( '.iboh-day-body' );
+		var note = wrap.querySelector( '.iboh-day-closed-note' );
+		wrap.classList.toggle( 'iboh-is-closed', closed );
+		if ( body ) {
+			body.hidden = closed;
+		}
+		if ( note ) {
+			note.hidden = ! closed;
+		}
+		var container = wrap.querySelector( '.iboh-ranges' );
+		if ( ! closed && container && false !== seed && ! container.querySelector( '.iboh-range' ) ) {
+			seedRanges( wrap, container );
+		}
+		updateRangeLimit( container );
+	}
+
+	/* Default hours for a day that has just been opened: the regular weekday's
+	 * hours for a date, otherwise 09:00 to 17:00. */
+	function seedRanges( wrap, container ) {
+		var seeds = [ { open: '09:00', close: '17:00' } ];
+		if ( wrap.hasAttribute( 'data-iboh-holiday' ) ) {
+			var dateInput = wrap.querySelector( 'input[type="date"]' );
+			var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec( dateInput ? dateInput.value : '' );
+			if ( match ) {
+				var dow = dateUtc( +match[ 1 ], +match[ 2 ], +match[ 3 ] ).getUTCDay();
+				var dayRow = document.querySelector( '[data-iboh-day][data-dow="' + dow + '"]' );
+				var state = dayRow ? readDay( dayRow ) : null;
+				if ( state && ! state.closed && state.ranges.length ) {
+					seeds = state.ranges;
+				}
+			}
+		}
+		seeds.forEach( function ( range ) {
+			var node = addRange( container, false );
+			if ( node ) {
+				setRangeValues( node, range.open, range.close );
+			}
+		} );
+	}
+
+	function toggleWeekly( checkbox ) {
+		var body = document.getElementById( 'iboh-weekly-body' );
+		var note = document.getElementById( 'iboh-weekly-off-note' );
+		if ( body ) {
+			body.hidden = ! checkbox.checked;
+		}
+		if ( note ) {
+			note.hidden = checkbox.checked;
+		}
+	}
+
+	/* ---- Range rows ------------------------------------------------------- */
+
 	function sync24hRange( row ) {
 		if ( ! row ) {
 			return;
@@ -211,16 +415,60 @@
 		var hiddenClose = row.querySelector( '[data-iboh-24h-close]' );
 		var timeOpen = row.querySelector( '[data-iboh-time-open]' );
 		var timeClose = row.querySelector( '[data-iboh-time-close]' );
+		var was24h = '1' === row.getAttribute( 'data-iboh-was-24h' );
 
 		if ( hiddenOpen ) { hiddenOpen.disabled = ! is24h; }
 		if ( hiddenClose ) { hiddenClose.disabled = ! is24h; }
+		if ( is24h && ! was24h ) {
+			// Remember the typed times so un-ticking restores them.
+			row.setAttribute( 'data-iboh-prev-open', timeOpen ? timeOpen.value : '' );
+			row.setAttribute( 'data-iboh-prev-close', timeClose ? timeClose.value : '' );
+		}
 		if ( timeOpen ) {
 			timeOpen.disabled = is24h;
-			if ( is24h ) { timeOpen.value = '00:00'; }
+			if ( is24h ) {
+				timeOpen.value = '00:00';
+			} else if ( was24h ) {
+				timeOpen.value = row.getAttribute( 'data-iboh-prev-open' ) || '09:00';
+			}
 		}
 		if ( timeClose ) {
 			timeClose.disabled = is24h;
-			if ( is24h ) { timeClose.value = '23:59'; }
+			if ( is24h ) {
+				timeClose.value = '23:59';
+			} else if ( was24h ) {
+				timeClose.value = row.getAttribute( 'data-iboh-prev-close' ) || '17:00';
+			}
+		}
+		row.setAttribute( 'data-iboh-was-24h', is24h ? '1' : '0' );
+		syncRangeHint( row );
+	}
+
+	function isOvernight( open, close ) {
+		return !! open && !! close && '24:00' !== close && close < open;
+	}
+
+	function rangeHint( open, close ) {
+		if ( ! isOvernight( open, close ) ) {
+			return '';
+		}
+		if ( '00:00' === close ) {
+			return text( 'midnightHint', 'until midnight' );
+		}
+		return formatTemplate( text( 'overnightHint', 'closes %s the next day' ), [ close ] );
+	}
+
+	function syncRangeHint( row ) {
+		var hint = row ? row.querySelector( '[data-iboh-range-hint]' ) : null;
+		if ( ! hint ) {
+			return;
+		}
+		var toggle = row.querySelector( '.iboh-24h-toggle' );
+		var timeOpen = row.querySelector( '[data-iboh-time-open]' );
+		var timeClose = row.querySelector( '[data-iboh-time-close]' );
+		var value = ( toggle && toggle.checked ) ? '' : rangeHint( timeOpen ? timeOpen.value : '', timeClose ? timeClose.value : '' );
+		if ( hint.textContent !== value ) {
+			hint.textContent = value;
 		}
 	}
 
@@ -230,13 +478,15 @@
 		var timeOpen = row.querySelector( '[data-iboh-time-open]' );
 		var timeClose = row.querySelector( '[data-iboh-time-close]' );
 
+		row.setAttribute( 'data-iboh-was-24h', '0' );
 		if ( toggle ) { toggle.checked = is24h; }
 		if ( timeOpen ) { timeOpen.value = open || ''; }
-		if ( timeClose ) { timeClose.value = is24h ? '23:59' : ( close || '' ); }
+		if ( timeClose ) {
+			// "until midnight" (24:00) is shown as 00:00, which evaluates the same.
+			timeClose.value = is24h ? '23:59' : ( '24:00' === close ? '00:00' : ( close || '' ) );
+		}
 		sync24hRange( row );
 	}
-
-	/* ---- Range rows ------------------------------------------------------- */
 
 	function addRange( container, moveFocus ) {
 		var tpl = document.getElementById( 'iboh-range-tpl' );
@@ -301,19 +551,17 @@
 		}
 
 		var sourceInput = node.querySelector( '.iboh-holiday-source' );
+		var bankTag = node.querySelector( '[data-iboh-bank-tag]' );
 		if ( sourceInput ) {
 			sourceInput.value = ( 'bank_holiday' === source ) ? 'bank_holiday' : '';
 		}
-
-		var closedToggle = node.querySelector( '.iboh-closed-toggle' );
-		if ( closedToggle ) {
-			closedToggle.checked = ( closed !== false );
-			toggleClosed( closedToggle );
+		if ( bankTag ) {
+			bankTag.hidden = ( 'bank_holiday' !== source );
 		}
 
 		list.appendChild( node );
+		setClosed( node, closed !== false );
 		syncHolidayContext( node );
-		updateRangeLimit( node.querySelector( '.iboh-ranges' ) );
 		updateHolidayLimit();
 		schedulePreview();
 		if ( false !== moveFocus && dateInput ) {
@@ -346,16 +594,6 @@
 		return y + '-' + m + '-' + d;
 	}
 
-	function siteTodayYmd() {
-		if ( window.IBOHEval && window.IBOHEval.siteNow ) {
-			return window.IBOHEval.siteNow( {
-				tz: window.IBOH ? window.IBOH.tz : '',
-				offset: window.IBOH ? window.IBOH.offset : 0
-			} ).ymd;
-		}
-		return ymdFromDate( new Date() );
-	}
-
 	function previousYmd( today ) {
 		var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec( String( today || '' ) );
 		if ( ! match ) {
@@ -369,11 +607,11 @@
 	}
 
 	function previewLabelValue( key, value ) {
-		var text = value === undefined || value === null ? '' : String( value );
-		if ( '' !== text.trim() ) {
-			return text;
+		var value_text = value === undefined || value === null ? '' : String( value );
+		if ( '' !== value_text.trim() ) {
+			return value_text;
 		}
-		var defaults = ( window.IBOH && window.IBOH.defaultLabels ) || {};
+		var defaults = IBOH.defaultLabels || {};
 		return defaults[ key ] === undefined || defaults[ key ] === null ? '' : String( defaults[ key ] );
 	}
 
@@ -518,18 +756,62 @@
 		return rows;
 	}
 
+	function holidayDate( row ) {
+		var input = row ? row.querySelector( 'input[type="date"]' ) : null;
+		return input && input.value ? input.value : '9999-12-31';
+	}
+
+	/* Re-order the whole list (after adding bank holidays). Rows are only
+	 * moved when the order is actually wrong. */
 	function sortHolidayRows() {
 		var list = document.getElementById( 'iboh-holidays' );
 		if ( ! list ) {
 			return;
 		}
-		Array.prototype.slice.call( list.querySelectorAll( '[data-iboh-holiday]' ) )
-			.sort( function ( a, b ) {
-				var ad = ( a.querySelector( 'input[type="date"]' ) || {} ).value || '9999-12-31';
-				var bd = ( b.querySelector( 'input[type="date"]' ) || {} ).value || '9999-12-31';
-				return ad.localeCompare( bd );
-			} )
-			.forEach( function ( row ) { list.appendChild( row ); } );
+		var rows = Array.prototype.slice.call( list.querySelectorAll( '[data-iboh-holiday]' ) );
+		var sorted = rows.slice().sort( function ( a, b ) {
+			return holidayDate( a ).localeCompare( holidayDate( b ) );
+		} );
+		var unchanged = sorted.every( function ( row, index ) { return row === rows[ index ]; } );
+		if ( unchanged ) {
+			return;
+		}
+		var active = document.activeElement;
+		sorted.forEach( function ( row ) { list.appendChild( row ); } );
+		if ( active && 'function' === typeof active.focus && document.activeElement !== active ) {
+			active.focus();
+		}
+	}
+
+	/* Move one edited row to its date position. Only that row moves, and only
+	 * once focus has left it, so typing a date is never interrupted and focus
+	 * elsewhere in the list is never disturbed. */
+	function placeHolidayRow( row ) {
+		var list = document.getElementById( 'iboh-holidays' );
+		if ( ! list || ! row || row.parentElement !== list || row.contains( document.activeElement ) ) {
+			return;
+		}
+		var date = holidayDate( row );
+		var before = null;
+		var rows = list.querySelectorAll( '[data-iboh-holiday]' );
+		for ( var i = 0; i < rows.length; i++ ) {
+			if ( rows[ i ] !== row && holidayDate( rows[ i ] ) > date ) {
+				before = rows[ i ];
+				break;
+			}
+		}
+		var next = row.nextElementSibling;
+		while ( next && ! next.hasAttribute( 'data-iboh-holiday' ) ) {
+			next = next.nextElementSibling;
+		}
+		var previous = row.previousElementSibling;
+		while ( previous && ! previous.hasAttribute( 'data-iboh-holiday' ) ) {
+			previous = previous.previousElementSibling;
+		}
+		if ( next === before && ( ! previous || holidayDate( previous ) <= date ) ) {
+			return;
+		}
+		list.insertBefore( row, before );
 	}
 
 	function bankHolidayMessage( added, replaced, skipped, limitReached ) {
@@ -537,12 +819,12 @@
 			return holidayLimitReachedMessage;
 		}
 		if ( added < 1 && replaced < 1 ) {
-			return i18n.bankHolidaysNone || 'Those bank holidays are already in your list.';
+			return text( 'bankHolidaysNone', 'Those bank holidays are already in your list.' );
 		}
-		var message = String( i18n.bankHolidaysAdded || 'Added: %1$d. Replaced existing dates: %2$d. Already in your list: %3$d. Save changes when you are happy.' )
-			.replace( '%1$d', added )
-			.replace( '%2$d', replaced )
-			.replace( '%3$d', skipped );
+		var message = formatTemplate(
+			text( 'bankHolidaysAdded', 'Added: %1$d. Replaced existing dates: %2$d. Already in your list: %3$d. Click Save changes when you are happy.' ),
+			[ added, replaced, skipped ]
+		);
 		return message + ( limitReached ? ( ' ' + holidayLimitReachedMessage ) : '' );
 	}
 
@@ -584,6 +866,7 @@
 		} );
 
 		sortHolidayRows();
+		markDirty();
 		schedulePreview();
 		updateHolidayLimit();
 		if ( status ) {
@@ -591,58 +874,63 @@
 		}
 	}
 
-	/* ---- Copy Monday to the other weekdays ------------------------------- */
+	/* ---- Copy Monday's hours --------------------------------------------- */
 
-	function copyWeekdays() {
+	function copyTargets( value ) {
+		if ( 'all' === value ) {
+			return [ 2, 3, 4, 5, 6, 0 ];
+		}
+		if ( 'mon_sat' === value ) {
+			return [ 2, 3, 4, 5, 6 ];
+		}
+		return [ 2, 3, 4, 5 ];
+	}
+
+	/* Includes the hours a closed day keeps, so replacing them asks first. */
+	function dayStateKey( state ) {
+		return JSON.stringify( { closed: !! state.closed, ranges: state.ranges } );
+	}
+
+	function copyMonday() {
 		var monday = document.querySelector( '[data-iboh-day][data-dow="1"]' );
+		var select = document.getElementById( 'iboh-copy-target' );
+		var status = document.getElementById( 'iboh-copy-status' );
 		if ( ! monday ) {
 			return;
 		}
+		var targetLabel = select && select.selectedIndex >= 0 ? select.options[ select.selectedIndex ].text : '';
 		var mondayState = readDay( monday );
-		[ 2, 3, 4, 5 ].forEach( function ( dow ) {
-			var row = document.querySelector( '[data-iboh-day][data-dow="' + dow + '"]' );
-			if ( ! row ) {
-				return;
-			}
-			var toggle = row.querySelector( '.iboh-closed-toggle' );
-			if ( toggle ) {
-				toggle.checked = mondayState.closed;
-				toggleClosed( toggle );
-			}
+		var mondayKey = dayStateKey( mondayState );
+		var rows = copyTargets( select ? select.value : 'weekdays' ).map( function ( dow ) {
+			return document.querySelector( '[data-iboh-day][data-dow="' + dow + '"]' );
+		} ).filter( Boolean );
+
+		var differs = rows.some( function ( row ) {
+			return dayStateKey( readDay( row ) ) !== mondayKey;
+		} );
+		if ( differs && ! window.confirm( formatTemplate( text( 'copyConfirm', "Replace the hours already set for %s with Monday's hours?" ), [ targetLabel ] ) ) ) {
+			return;
+		}
+
+		rows.forEach( function ( row ) {
 			var container = row.querySelector( '.iboh-ranges' );
 			if ( container ) {
 				container.innerHTML = '';
 				mondayState.ranges.forEach( function ( r ) {
-					addRange( container, false );
-					var rows = container.querySelectorAll( '.iboh-range' );
-					var last = rows[ rows.length - 1 ];
-					setRangeValues( last, r.open, r.close );
+					var node = addRange( container, false );
+					if ( node ) {
+						setRangeValues( node, r.open, r.close );
+					}
 				} );
-				updateRangeLimit( container );
 			}
+			setClosed( row, mondayState.closed );
+			syncRangeLabels( container );
+			updateRangeLimit( container );
 		} );
-		schedulePreview();
-	}
-
-	/* ---- Weekly hours master toggle (show/hide all the day rows) --------- */
-
-	function toggleWeekly( checkbox ) {
-		var body = document.querySelector( '.iboh-weekly-body' );
-		if ( body ) {
-			body.style.display = checkbox.checked ? '' : 'none';
-		}
-	}
-
-	/* ---- Closed toggle (show/hide the hours body) ------------------------ */
-
-	function toggleClosed( checkbox ) {
-		var wrap = checkbox.closest( '[data-iboh-day], [data-iboh-holiday]' );
-		if ( ! wrap ) {
-			return;
-		}
-		var body = wrap.querySelector( '.iboh-day-body' );
-		if ( body ) {
-			body.style.display = checkbox.checked ? 'none' : '';
+		markDirty();
+		schedulePreview( true );
+		if ( status ) {
+			status.textContent = formatTemplate( text( 'copyDone', "Copied Monday's hours to %s. Click Save changes when you are happy." ), [ targetLabel ] );
 		}
 	}
 
@@ -672,101 +960,30 @@
 	}
 
 	function readDay( row ) {
-		var toggle = row.querySelector( '.iboh-closed-toggle' );
-		var closed = toggle ? toggle.checked : false;
+		var closed = isClosed( row );
 		return {
 			closed: closed,
-			ranges: closed ? [] : rangesFrom( row.querySelector( '.iboh-ranges' ) )
+			ranges: rangesFrom( row.querySelector( '.iboh-ranges' ) )
 		};
-	}
-
-	function normaliseHolidayRowsForSubmit( event ) {
-		var firstInvalid = null;
-		var today = siteTodayYmd();
-		var cutoff = previousYmd( today );
-
-		document.querySelectorAll( '[data-iboh-holiday]' ).forEach( function ( row ) {
-			ensureHolidayRowNames( row );
-
-			var dateInput = row.querySelector( 'input[type="date"]' );
-			if ( dateInput ) {
-				dateInput.setCustomValidity( '' );
-				if ( ! dateInput.value ) {
-					dateInput.setCustomValidity( missingDateMessage );
-					if ( ! firstInvalid ) {
-						firstInvalid = dateInput;
-					}
-				}
-			}
-
-			if ( dateInput && dateInput.value && dateInput.value < cutoff ) {
-				row.remove();
-				return;
-			}
-
-			var closedToggle = row.querySelector( '.iboh-closed-toggle' );
-			if ( dateInput && dateInput.value && closedToggle && ! closedToggle.checked && ! rangesFrom( row.querySelector( '.iboh-ranges' ) ).length ) {
-				closedToggle.checked = true;
-				toggleClosed( closedToggle );
-			}
-		} );
-		updateHolidayLimit();
-
-		if ( firstInvalid ) {
-			event.preventDefault();
-			if ( firstInvalid.reportValidity ) {
-				firstInvalid.reportValidity();
-			}
-			firstInvalid.focus();
-		}
-	}
-
-	function previewCarryHolidays() {
-		var carry = ( window.IBOH && window.IBOH.previewCarry ) || {};
-		var out = {};
-		if ( ! carry || 'object' !== typeof carry || Array.isArray( carry ) ) {
-			return out;
-		}
-		Object.keys( carry ).forEach( function ( date ) {
-			var row = carry[ date ];
-			if ( ! row || 'object' !== typeof row || Array.isArray( row ) ) {
-				return;
-			}
-			out[ date ] = {
-				closed: row.closed,
-				ranges: Array.isArray( row.ranges ) ? row.ranges.map( function ( range ) {
-					return range && 'object' === typeof range
-						? { open: range.open, close: range.close }
-						: range;
-				} ) : [],
-				label: [ 'string', 'number', 'boolean' ].indexOf( typeof row.label ) >= 0 ? String( row.label ) : '',
-				source: 'bank_holiday' === row.source ? 'bank_holiday' : ''
-			};
-		} );
-		return out;
 	}
 
 	function buildConfig() {
-		var cfg = {
-			tz: window.IBOH ? window.IBOH.tz : '',
-			offset: window.IBOH ? window.IBOH.offset : 0,
-			timeFormat: window.IBOH ? window.IBOH.timeFormat : 'H:i',
-			meridiem: window.IBOH ? window.IBOH.meridiem : {},
-			list: window.IBOH ? window.IBOH.list : {},
-			lang: window.IBOH ? window.IBOH.lang : '',
-			dateNames: window.IBOH ? window.IBOH.dateNames : {},
-			dayNames: window.IBOH ? window.IBOH.dayNames : [],
-			closedText: window.IBOH ? window.IBOH.closedText : 'Closed',
-			schedule: {},
-			holidays: previewCarryHolidays(),
-			labels: {},
-			banner: {},
-			options: {}
-		};
+		var selection = timezoneSelection();
+		var cfg = baseFormatConfig();
+		cfg.tz = selection.tz;
+		cfg.offset = selection.offset;
+		cfg.offsets = selection.offsets;
+		cfg.closedText = IBOH.closedText !== undefined ? IBOH.closedText : 'Closed';
+		cfg.schedule = {};
+		cfg.holidays = {};
+		cfg.labels = {};
+		cfg.banner = {};
+		cfg.options = {};
 
 		document.querySelectorAll( '[data-iboh-day]' ).forEach( function ( row ) {
 			var dow = row.getAttribute( 'data-dow' );
-			cfg.schedule[ dow ] = readDay( row );
+			var state = readDay( row );
+			cfg.schedule[ dow ] = { closed: state.closed ? 1 : 0, ranges: state.closed ? [] : state.ranges };
 		} );
 
 		var today = siteTodayYmd();
@@ -782,9 +999,10 @@
 			if ( cfg.holidays[ date ] && 'bank_holiday' === cfg.holidays[ date ].source && 'bank_holiday' !== source ) {
 				return;
 			}
+			var state = readDay( row );
 			cfg.holidays[ date ] = {
-				closed: readDay( row ).closed,
-				ranges: readDay( row ).ranges,
+				closed: state.closed ? 1 : 0,
+				ranges: state.closed ? [] : state.ranges,
 				label: labelInput ? labelInput.value : '',
 				source: source
 			};
@@ -819,12 +1037,17 @@
 	/* ---- Customer preview ------------------------------------------------ */
 
 	var previewTimer = null;
+	var previewAnnounce = true;
+	var lastAnnouncement = null;
 
 	function setTextIfChanged( element, value ) {
 		if ( ! element ) {
 			return false;
 		}
 		value = value === undefined || value === null ? '' : String( value );
+		if ( window.IBOHEval && window.IBOHEval.decodeEntities ) {
+			value = window.IBOHEval.decodeEntities( value );
+		}
 		if ( element.textContent === value && ! ( element.childElementCount > 0 ) ) {
 			return false;
 		}
@@ -839,8 +1062,7 @@
 		}
 		value = value === undefined || value === null ? '' : String( value );
 		// Browsers normalize entity spellings in innerHTML. Cache the exact
-		// generated value so a stable atomic live region is not rewritten and
-		// re-announced on every 30-second preview refresh.
+		// generated value so a stable region is not rewritten on every refresh.
 		if ( element.__ibohAdminRenderedHtml === value ) {
 			return false;
 		}
@@ -851,7 +1073,7 @@
 
 	function updatePreviewContent( main, sub, upcoming, state ) {
 		if ( ! state.show ) {
-			setTextIfChanged( main, i18n.hidden || '—' );
+			setTextIfChanged( main, state.hiddenText || text( 'hidden', '—' ) );
 			setTextIfChanged( sub, '' );
 			setTextIfChanged( upcoming, '' );
 			return;
@@ -865,7 +1087,29 @@
 		}
 	}
 
-	function schedulePreview() {
+	/* Screen readers hear the preview only when a change is committed (not on
+	 * every keystroke) and when the live wording changes on the timer. */
+	function announcePreview( box ) {
+		var region = document.getElementById( 'iboh-preview-announce' );
+		if ( ! region || ! box ) {
+			return;
+		}
+		var message = box.textContent.replace( /\s+/g, ' ' ).trim();
+		if ( ! previewAnnounce && null !== lastAnnouncement ) {
+			return;
+		}
+		if ( message !== lastAnnouncement ) {
+			region.textContent = message;
+			lastAnnouncement = message;
+		}
+	}
+
+	function schedulePreview( announce ) {
+		if ( true === announce ) {
+			previewAnnounce = true;
+		} else if ( false === announce ) {
+			previewAnnounce = false;
+		}
 		if ( previewTimer ) {
 			window.clearTimeout( previewTimer );
 		}
@@ -873,18 +1117,23 @@
 	}
 
 	function renderPreview() {
-		// Date edits and midnight rollover can change which retained rows count
-		// toward the public special-date cap without adding or removing a row.
+		// Date edits and midnight rollover can change which rows count toward
+		// the date cap without adding or removing a row.
 		updateHolidayLimit();
 		var box = document.getElementById( 'iboh-preview' );
 		if ( ! box || ! window.IBOHEval ) {
 			return;
 		}
 		var cfg = buildConfig();
-		var s = window.IBOHEval.buildStatus( cfg, window.IBOHEval.siteNow( cfg ) );
+		renderSiteTime( cfg );
+		var s = window.IBOHEval.buildStatus( cfg, siteNowFor( cfg ) );
 		var main = box.querySelector( '[data-iboh-main]' );
 		var sub = box.querySelector( '[data-iboh-sub]' );
 		var up = box.querySelector( '[data-iboh-upcoming]' );
+
+		if ( ! ( +cfg.banner.enabled ) ) {
+			s = { show: false, hiddenText: text( 'bannerOff', 'The notice bar is turned off.' ) };
+		}
 
 		if ( ! s.show ) {
 			box.classList.remove( 'iboh-open' );
@@ -892,6 +1141,8 @@
 			box.style.background = '';
 			box.style.color = '';
 			updatePreviewContent( main, sub, up, s );
+			announcePreview( box );
+			previewAnnounce = true;
 			return;
 		}
 
@@ -901,7 +1152,11 @@
 		box.style.background = s.open ? cfg.banner.colour_open : cfg.banner.colour_closed;
 		box.style.color = cfg.banner.colour_text;
 		updatePreviewContent( main, sub, up, s );
+		announcePreview( box );
+		previewAnnounce = true;
 	}
+
+	/* ---- Removal with sensible focus ------------------------------------- */
 
 	function removeRangeAndFocus( range ) {
 		if ( ! range || ! range.parentElement ) {
@@ -911,6 +1166,7 @@
 		var rows = Array.prototype.slice.call( container.querySelectorAll( '.iboh-range' ) );
 		var index = rows.indexOf( range );
 		range.remove();
+		clearCustomValidity( document.getElementById( 'iboh-form' ) );
 		syncRangeLabels( container );
 		updateRangeLimit( container );
 
@@ -919,7 +1175,8 @@
 		if ( ! focusControl( neighbour, '[data-iboh-time-open]:not([disabled]), .iboh-24h-toggle:not([disabled])' ) ) {
 			focusControl( container.closest( '.iboh-day-body' ), '.iboh-add-range:not([disabled])' );
 		}
-		schedulePreview();
+		markDirty();
+		schedulePreview( true );
 	}
 
 	function removeHolidayAndFocus( holiday ) {
@@ -930,6 +1187,7 @@
 		var rows = Array.prototype.slice.call( list.querySelectorAll( '[data-iboh-holiday]' ) );
 		var index = rows.indexOf( holiday );
 		holiday.remove();
+		clearCustomValidity( document.getElementById( 'iboh-form' ) );
 		updateHolidayLimit();
 
 		var remaining = list.querySelectorAll( '[data-iboh-holiday]' );
@@ -940,7 +1198,118 @@
 				addButton.focus();
 			}
 		}
-		schedulePreview();
+		markDirty();
+		schedulePreview( true );
+	}
+
+	/* ---- Unsaved-changes tracking ---------------------------------------- */
+
+	function markDirty() {
+		dirty = true;
+		var pill = document.getElementById( 'iboh-unsaved' );
+		if ( pill ) {
+			pill.hidden = false;
+		}
+	}
+
+	/* Only controls that are submitted (or drive submitted fields) count as
+	 * unsaved changes; helper menus such as the bank-holiday year do not. */
+	function isSavedControl( form, target ) {
+		if ( ! form || ! target || ! form.contains( target ) ) {
+			return false;
+		}
+		return !! target.name || ( target.classList && target.classList.contains( 'iboh-24h-toggle' ) );
+	}
+
+	function markClean() {
+		dirty = false;
+		var pill = document.getElementById( 'iboh-unsaved' );
+		if ( pill ) {
+			pill.hidden = true;
+		}
+	}
+
+	/* ---- Validation before submit ---------------------------------------- */
+
+	function invalidate( input, message, state ) {
+		if ( ! input ) {
+			return;
+		}
+		input.setCustomValidity( message );
+		if ( ! state.first ) {
+			state.first = input;
+		}
+	}
+
+	/* Custom messages are only ever set by validateForSubmit(); any edit may
+	 * resolve a problem on a *different* field (a duplicate date, say), so
+	 * every message is cleared and recomputed on the next submit. */
+	function clearCustomValidity( form ) {
+		if ( ! form ) {
+			return;
+		}
+		form.querySelectorAll( 'input, select' ).forEach( function ( input ) {
+			if ( input.validity && input.validity.customError ) {
+				input.setCustomValidity( '' );
+			}
+		} );
+	}
+
+	function validateForSubmit( event ) {
+		var state = { first: null };
+		var today = siteTodayYmd();
+		var cutoff = previousYmd( today );
+		var seenDates = {};
+
+		document.querySelectorAll( '[data-iboh-holiday]' ).forEach( function ( row ) {
+			ensureHolidayRowNames( row );
+			var dateInput = row.querySelector( 'input[type="date"]' );
+			if ( dateInput ) {
+				dateInput.setCustomValidity( '' );
+				if ( ! dateInput.value ) {
+					invalidate( dateInput, text( 'missingDate', 'Pick a date, or remove this row.' ), state );
+				} else if ( dateInput.value < cutoff ) {
+					invalidate( dateInput, text( 'pastDate', 'That date has already passed. Pick a later date, or remove this row.' ), state );
+				} else if ( seenDates[ dateInput.value ] ) {
+					invalidate( dateInput, text( 'duplicateDate', 'This date is already in the list. Edit that entry or remove this one.' ), state );
+				} else {
+					seenDates[ dateInput.value ] = true;
+				}
+			}
+		} );
+
+		var weeklyOn = document.getElementById( 'iboh-weekly-enabled' );
+		document.querySelectorAll( '[data-iboh-day], [data-iboh-holiday]' ).forEach( function ( wrap ) {
+			var isDay = wrap.hasAttribute( 'data-iboh-day' );
+			var skip = isClosed( wrap ) || ( isDay && weeklyOn && ! weeklyOn.checked );
+			wrap.querySelectorAll( '.iboh-range' ).forEach( function ( row ) {
+				var toggle = row.querySelector( '.iboh-24h-toggle' );
+				var openInput = row.querySelector( '[data-iboh-time-open]' );
+				var closeInput = row.querySelector( '[data-iboh-time-close]' );
+				if ( openInput ) { openInput.setCustomValidity( '' ); }
+				if ( closeInput ) { closeInput.setCustomValidity( '' ); }
+				if ( skip || ( toggle && toggle.checked ) ) {
+					return;
+				}
+				var message = text( 'missingTime', 'Enter both an opening and a closing time, or remove this time.' );
+				if ( openInput && ! openInput.value ) {
+					invalidate( openInput, message, state );
+				} else if ( closeInput && ! closeInput.value ) {
+					invalidate( closeInput, message, state );
+				}
+			} );
+		} );
+		updateHolidayLimit();
+
+		if ( state.first ) {
+			event.preventDefault();
+			if ( state.first.reportValidity ) {
+				state.first.reportValidity();
+			}
+			state.first.focus();
+			return;
+		}
+		markClean();
 	}
 
 	/* ---- Wiring ---------------------------------------------------------- */
@@ -948,7 +1317,7 @@
 	function init() {
 		var form = document.getElementById( 'iboh-form' );
 		if ( form ) {
-			form.addEventListener( 'submit', normaliseHolidayRowsForSubmit );
+			form.addEventListener( 'submit', validateForSubmit );
 		}
 
 		document.addEventListener( 'click', function ( e ) {
@@ -957,64 +1326,123 @@
 				e.preventDefault();
 				var body = t.closest( '.iboh-day-body' );
 				addRange( body ? body.querySelector( '.iboh-ranges' ) : null );
+				markDirty();
 			} else if ( t.closest( '.iboh-remove-range' ) ) {
 				e.preventDefault();
-				var range = t.closest( '.iboh-range' );
-				removeRangeAndFocus( range );
+				removeRangeAndFocus( t.closest( '.iboh-range' ) );
 			} else if ( t.closest( '.iboh-remove-holiday' ) ) {
 				e.preventDefault();
-				var holiday = t.closest( '.iboh-holiday' );
-				removeHolidayAndFocus( holiday );
+				removeHolidayAndFocus( t.closest( '.iboh-holiday' ) );
 			} else if ( t.id === 'iboh-add-holiday' ) {
 				e.preventDefault();
 				addHoliday();
+				markDirty();
 			} else if ( t.id === 'iboh-add-bank-holidays' ) {
 				e.preventDefault();
 				addClosedBankHolidays();
-			} else if ( t.id === 'iboh-copy-weekdays' ) {
+			} else if ( t.id === 'iboh-copy-monday' ) {
 				e.preventDefault();
-				copyWeekdays();
+				copyMonday();
 			}
 		} );
 
 		document.addEventListener( 'change', function ( e ) {
-			if ( e.target.classList.contains( 'iboh-24h-toggle' ) ) {
-				sync24hRange( e.target.closest( '.iboh-range' ) );
-			} else if ( e.target.classList.contains( 'iboh-closed-toggle' ) ) {
-				toggleClosed( e.target );
-			} else if ( 'iboh-weekly-enabled' === e.target.id ) {
-				toggleWeekly( e.target );
+			var target = e.target;
+			if ( ! target || ! target.classList ) {
+				return;
 			}
-			schedulePreview();
+			if ( target.classList.contains( 'iboh-24h-toggle' ) ) {
+				sync24hRange( target.closest( '.iboh-range' ) );
+			} else if ( target.classList.contains( 'iboh-closed-toggle' ) ) {
+				applyOpenClosed( target.closest( '[data-iboh-day], [data-iboh-holiday]' ) );
+			} else if ( 'iboh-weekly-enabled' === target.id ) {
+				toggleWeekly( target );
+			} else if ( target.matches && target.matches( '[data-iboh-holiday] input[type="date"]' ) ) {
+				// No re-ordering here: Chrome fires "change" on every keystroke
+				// in a date field, and moving the row would scramble the typing.
+				syncHolidayContext( target.closest( '[data-iboh-holiday]' ) );
+			} else if ( target.matches && target.matches( '[data-iboh-time-open], [data-iboh-time-close]' ) ) {
+				syncRangeHint( target.closest( '.iboh-range' ) );
+			}
+			if ( isSavedControl( form, target ) ) {
+				clearCustomValidity( form );
+				markDirty();
+			}
+			schedulePreview( true );
 		} );
 
 		document.addEventListener( 'input', function ( e ) {
-			if ( e.target.matches && e.target.matches( '[data-iboh-holiday] input[type="date"]' ) ) {
-				syncHolidayContext( e.target.closest( '[data-iboh-holiday]' ) );
+			var target = e.target;
+			if ( target && target.matches && target.matches( '[data-iboh-holiday] input[type="date"]' ) ) {
+				syncHolidayContext( target.closest( '[data-iboh-holiday]' ) );
+			} else if ( target && target.matches && target.matches( '[data-iboh-time-open], [data-iboh-time-close]' ) ) {
+				syncRangeHint( target.closest( '.iboh-range' ) );
 			}
-			schedulePreview();
+			if ( isSavedControl( form, target ) ) {
+				clearCustomValidity( form );
+				markDirty();
+			}
+			schedulePreview( false );
 		} );
 
-		document.querySelectorAll( '.iboh-range' ).forEach( sync24hRange );
+		// Put an edited date in order once the owner has finished with its row.
+		document.addEventListener( 'focusout', function ( e ) {
+			var row = e.target && e.target.closest ? e.target.closest( '[data-iboh-holiday]' ) : null;
+			if ( ! row || ( e.relatedTarget && row.contains( e.relatedTarget ) ) ) {
+				return;
+			}
+			window.setTimeout( function () {
+				placeHolidayRow( row );
+			}, 0 );
+		} );
+
+		window.addEventListener( 'beforeunload', function ( e ) {
+			if ( dirty ) {
+				e.preventDefault();
+				e.returnValue = '';
+			}
+		} );
+
+		// Re-apply the 24-hour state: a browser can restore a ticked checkbox
+		// after a reload while the server markup has the time inputs enabled.
+		document.querySelectorAll( '.iboh-range' ).forEach( function ( row ) {
+			var toggle = row.querySelector( '.iboh-24h-toggle' );
+			var is24h = !! ( toggle && toggle.checked );
+			row.setAttribute( 'data-iboh-was-24h', '0' );
+			sync24hRange( row );
+			if ( is24h ) {
+				// No earlier times to restore if the owner unticks it.
+				row.setAttribute( 'data-iboh-prev-open', '' );
+				row.setAttribute( 'data-iboh-prev-close', '' );
+			}
+		} );
+		document.querySelectorAll( '[data-iboh-day], [data-iboh-holiday]' ).forEach( function ( wrap ) {
+			applyOpenClosed( wrap, false );
+		} );
 		document.querySelectorAll( '[data-iboh-day] .iboh-ranges' ).forEach( syncRangeLabels );
 		document.querySelectorAll( '[data-iboh-holiday]' ).forEach( syncHolidayContext );
 		updateAllRangeLimits();
 		updateHolidayLimit();
 		renderPreview();
-		// Keep the "soon"/transition wording live even with no edits.
+		// Keep the clock and "soon"/transition wording live even with no edits.
 		window.setInterval( renderPreview, 30000 );
 	}
 
 	window.IBOHAdminEval = {
 		formatTemplate: formatTemplate,
 		holidayCountForLimit: holidayCountForLimit,
-		previewCarryHolidays: previewCarryHolidays,
 		previousYmd: previousYmd,
 		shouldIncludePreviewDate: shouldIncludePreviewDate,
 		previewLabelValue: previewLabelValue,
 		setTextIfChanged: setTextIfChanged,
 		setHtmlIfChanged: setHtmlIfChanged,
-		updatePreviewContent: updatePreviewContent
+		updatePreviewContent: updatePreviewContent,
+		utcOffsetMinutes: utcOffsetMinutes,
+		rangeHint: rangeHint,
+		isOvernight: isOvernight,
+		easterSunday: easterSunday,
+		standardBankHolidays: standardBankHolidays,
+		copyTargets: copyTargets
 	};
 
 	if ( 'loading' !== document.readyState ) {

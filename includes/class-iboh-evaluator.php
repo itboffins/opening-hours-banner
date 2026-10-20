@@ -61,7 +61,7 @@ class IBOH_Evaluator {
 	private static function site_now( $now ) {
 		if ( $now instanceof DateTimeInterface ) {
 			$resolved = new DateTimeImmutable( '@' . $now->getTimestamp() );
-			return $resolved->setTimezone( wp_timezone() );
+			return $resolved->setTimezone( IBOH_Timezone::timezone() );
 		}
 		return IBOH_Timezone::now();
 	}
@@ -373,7 +373,7 @@ class IBOH_Evaluator {
 			$sub  = '';
 			if ( null !== $closes_at ) {
 				if ( $show ) {
-					$sub = self::format_label( $labels['closes_at'], array( self::transition_label( $ymd, $closes_at ) ) );
+					$sub = self::format_label( $labels['closes_at'], array( self::transition_label( $cfg, $ymd, $closes_at, $minutes ) ) );
 				}
 				$until_close = self::transition_delta_minutes( $ymd, $closes_at, $now, $minutes );
 				if ( $soon > 0 && $until_close > 0 && $until_close <= $soon ) {
@@ -424,19 +424,40 @@ class IBOH_Evaluator {
 	/**
 	 * Format a transition time, including its date when it is after today.
 	 *
+	 * A close at exactly midnight tonight (absolute minute 1440) reads as
+	 * "today" during the afternoon and evening, so it is shown as a bare time
+	 * then. Earlier in the day a bare "00:00" could be read as already past,
+	 * so the dated form is kept.
+	 *
+	 * @param array  $cfg      Config.
 	 * @param string $ymd      Anchor date.
 	 * @param int    $absolute Absolute wall minute from anchor midnight.
+	 * @param int    $current  Current wall minute after midnight.
 	 * @return string
 	 */
-	private static function transition_label( $ymd, $absolute ) {
+	private static function transition_label( $cfg, $ymd, $absolute, $current = 0 ) {
 		$day_offset = (int) floor( $absolute / 1440 );
 		$minute     = $absolute - ( $day_offset * 1440 );
 		$time       = self::fmt_time( $minute );
-		if ( $day_offset <= 0 ) {
+		if ( $day_offset <= 0 || ( 1 === $day_offset && 0 === $minute && (int) $current >= 720 ) ) {
 			return $time;
 		}
 		$date = self::shift_ymd( $ymd, $day_offset );
-		return self::fmt_date( $date['ymd'] ) . ', ' . $time;
+		return self::format_label( self::fmt_pattern( $cfg, 'dateTime' ), array( self::fmt_date( $date['ymd'] ), $time ) );
+	}
+
+	/**
+	 * Resolve a translatable joining pattern from the config, with a fallback.
+	 *
+	 * @param array  $cfg Config.
+	 * @param string $key Pattern key (range, ranges, dateTime, dateNote, items).
+	 * @return string
+	 */
+	private static function fmt_pattern( $cfg, $key ) {
+		if ( isset( $cfg['formats'][ $key ] ) && is_scalar( $cfg['formats'][ $key ] ) && '' !== (string) $cfg['formats'][ $key ] ) {
+			return (string) $cfg['formats'][ $key ];
+		}
+		return IBOH_Config::format( $key );
 	}
 
 	/**
@@ -468,7 +489,7 @@ class IBOH_Evaluator {
 			return $fallback;
 		}
 
-		$timezone   = wp_timezone();
+		$timezone   = IBOH_Timezone::timezone();
 		$naive_time = $naive->getTimestamp();
 		$offsets    = array( $timezone->getOffset( $naive ) );
 		$changes    = $timezone->getTransitions( $naive_time - ( 2 * DAY_IN_SECONDS ), $naive_time + ( 2 * DAY_IN_SECONDS ) );
@@ -514,7 +535,7 @@ class IBOH_Evaluator {
 		$closed_dates = array();
 		foreach ( $events as $event ) {
 			if ( ! empty( $event['closed'] ) || empty( $event['ranges'] ) ) {
-				$closed_dates[] = self::event_date_label( $event );
+				$closed_dates[] = self::event_date_label( $cfg, $event );
 				continue;
 			}
 
@@ -529,7 +550,7 @@ class IBOH_Evaluator {
 			$parts[] = self::format_closed_dates( $cfg, $closed_dates );
 		}
 
-		return implode( ' · ', array_filter( $parts ) );
+		return implode( self::fmt_pattern( $cfg, 'items' ), array_filter( $parts ) );
 	}
 
 	/**
@@ -548,7 +569,7 @@ class IBOH_Evaluator {
 		$closed_dates = array();
 		foreach ( $events as $event ) {
 			if ( ! empty( $event['closed'] ) || empty( $event['ranges'] ) ) {
-				$closed_dates[] = self::event_date_label( $event );
+				$closed_dates[] = self::event_date_label( $cfg, $event );
 				continue;
 			}
 			if ( $closed_dates ) {
@@ -575,7 +596,7 @@ class IBOH_Evaluator {
 	 */
 	private static function format_event_html( $cfg, $ev ) {
 		$labels    = self::labels( $cfg );
-		$date_html = '<strong class="iboh-upcoming-date">' . esc_html( self::event_date_label( $ev ) ) . '</strong>';
+		$date_html = '<strong class="iboh-upcoming-date">' . esc_html( self::event_date_label( $cfg, $ev ) ) . '</strong>';
 		if ( ! empty( $ev['closed'] ) || empty( $ev['ranges'] ) ) {
 			$content = self::format_label_html( $labels['upcoming_closed'], array( $date_html ) );
 		} else {
@@ -609,13 +630,16 @@ class IBOH_Evaluator {
 	/**
 	 * Format a special date plus optional label.
 	 *
+	 * @param array $cfg   Config.
 	 * @param array $event Event { date, label }.
 	 * @return string
 	 */
-	private static function event_date_label( $event ) {
+	private static function event_date_label( $cfg, $event ) {
 		$date_text = self::fmt_date( isset( $event['date'] ) ? $event['date'] : '' );
 		$label     = isset( $event['label'] ) && is_scalar( $event['label'] ) ? (string) $event['label'] : '';
-		return ( '' !== $label ) ? $date_text . ' (' . $label . ')' : $date_text;
+		return ( '' !== $label )
+			? self::format_label( self::fmt_pattern( $cfg, 'dateNote' ), array( $date_text, $label ) )
+			: $date_text;
 	}
 
 	/**
@@ -711,7 +735,7 @@ class IBOH_Evaluator {
 	 */
 	private static function format_event( $cfg, $ev ) {
 		$labels     = self::labels( $cfg );
-		$date_label = self::event_date_label( $ev );
+		$date_label = self::event_date_label( $cfg, $ev );
 
 		if ( ! empty( $ev['closed'] ) || empty( $ev['ranges'] ) ) {
 			return self::format_label( $labels['upcoming_closed'], array( $date_label ) );
@@ -740,10 +764,10 @@ class IBOH_Evaluator {
 			$close   = ( '24:00' === $r['close'] ) ? 1439 : self::to_min( $r['close'] );
 			$open    = self::to_min( $r['open'] );
 			if ( null !== $open && null !== $close ) {
-				$parts[] = self::fmt_time( $open ) . ' – ' . self::fmt_time( $close );
+				$parts[] = self::format_label( self::fmt_pattern( $cfg, 'range' ), array( self::fmt_time( $open ), self::fmt_time( $close ) ) );
 			}
 		}
-		return implode( ', ', $parts );
+		return implode( self::fmt_pattern( $cfg, 'ranges' ), $parts );
 	}
 
 	/**

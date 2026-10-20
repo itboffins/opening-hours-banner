@@ -37,9 +37,14 @@ class IBOH_Config {
 		return array(
 			'tz'         => IBOH_Timezone::iana(),
 			'offset'     => IBOH_Timezone::offset_minutes(),
+			// Upcoming [ epochSeconds, offsetMinutes ] pairs: lets a browser
+			// without working Intl time-zone support follow daylight saving
+			// even when this payload was cached before a transition.
+			'offsets'    => IBOH_Timezone::offset_table(),
 			'timeFormat' => $time_format,
 			'meridiem'   => self::meridiem_names(),
 			'list'       => self::list_patterns(),
+			'formats'    => self::formats(),
 			'lang'       => self::browser_locale(),
 			'siteKey'    => (string) $blog_id . '|' . (string) $home,
 			'dateNames'  => self::short_date_names(),
@@ -99,6 +104,48 @@ class IBOH_Config {
 			/* translators: 1: Leading list items, 2: Final list item. */
 			'final'     => _x( '%1$s, and %2$s', 'last two items in a list of three or more', 'itboffins-live-opening-hours' ),
 		);
+	}
+
+	/**
+	 * Translatable joining patterns for customer-facing text, shared by the PHP
+	 * evaluator, the shortcode/table renderer, and the browser evaluator.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function formats() {
+		return array(
+			/* translators: 1: opening time, 2: closing time, e.g. "09:00 – 17:00". */
+			'range'    => _x( '%1$s – %2$s', 'opening time range', 'itboffins-live-opening-hours' ),
+			/* translators: separator between several time ranges on one day. */
+			'ranges'   => _x( ', ', 'separator between time ranges', 'itboffins-live-opening-hours' ),
+			/* translators: 1: short date, 2: time, e.g. "Tue 4 Aug, 02:00". */
+			'dateTime' => _x( '%1$s, %2$s', 'date followed by a time', 'itboffins-live-opening-hours' ),
+			/* translators: 1: short date, 2: public note, e.g. "Thu 25 Dec (Christmas Day)". */
+			'dateNote' => _x( '%1$s (%2$s)', 'date with a note', 'itboffins-live-opening-hours' ),
+			/* translators: separator between upcoming-date notices in plain text. */
+			'items'    => _x( ' · ', 'separator between upcoming-date notices', 'itboffins-live-opening-hours' ),
+		);
+	}
+
+	/**
+	 * One translatable joining pattern, with a source-language fallback.
+	 *
+	 * @param string $key Pattern key from formats().
+	 * @return string
+	 */
+	public static function format( $key ) {
+		$formats  = self::formats();
+		$fallback = array(
+			'range'    => '%1$s – %2$s',
+			'ranges'   => ', ',
+			'dateTime' => '%1$s, %2$s',
+			'dateNote' => '%1$s (%2$s)',
+			'items'    => ' · ',
+		);
+		if ( isset( $formats[ $key ] ) && is_string( $formats[ $key ] ) && '' !== $formats[ $key ] ) {
+			return $formats[ $key ];
+		}
+		return isset( $fallback[ $key ] ) ? $fallback[ $key ] : '%1$s';
 	}
 
 	/**

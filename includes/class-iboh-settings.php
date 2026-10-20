@@ -2,8 +2,8 @@
 /**
  * Settings storage, defaults, and sanitisation.
  *
- * Everything lives in a single option array (IBOH_OPTION) with four top-level
- * groups: schedule, holidays, banner, labels.
+ * Everything lives in a single option array (IBOH_OPTION) with five top-level
+ * groups: schedule, holidays, options, banner, labels.
  *
  * @package ITBoffins_Live_Opening_Hours
  */
@@ -32,6 +32,18 @@ class IBOH_Settings {
 	 * Option marker: stored label values are explicit sparse overrides.
 	 */
 	const LABEL_OVERRIDE_MARKER = '_labels_are_overrides';
+
+	/**
+	 * Form marker: the FIRST field in the settings form. It identifies a
+	 * submission from the current editor, which always ends with the sentinel.
+	 */
+	const FORM_MARKER = '_form';
+
+	/**
+	 * Form sentinel: the LAST field in the settings form. A submission that has
+	 * the form marker but not the sentinel was truncated by max_input_vars.
+	 */
+	const FORM_COMPLETE_MARKER = '_complete';
 
 	/**
 	 * Request-local normalized settings, keyed by blog, locale, date, raw option,
@@ -88,6 +100,9 @@ class IBOH_Settings {
 				'show_upcoming'     => 0,
 				// Bank holidays can stay quieter than manual special dates.
 				'bank_holiday_mode' => 'seven_days',
+				// '' = follow the WordPress site timezone. Otherwise an IANA name
+				// (America/Anchorage) or a WordPress-style manual offset (UTC-9).
+				'timezone'          => '',
 			),
 
 			'banner'   => array(
@@ -202,7 +217,9 @@ class IBOH_Settings {
 		$out = wp_parse_args( $saved, $defaults );
 
 		// Schedule: guarantee seven normalized weekdays. An open day without a
-		// valid range is closed, rather than an ambiguous empty/open state.
+		// valid range is closed, rather than an ambiguous empty/open state. A
+		// closed day keeps its last hours so they return when it reopens; both
+		// evaluators ignore ranges while a day is closed.
 		$saved_schedule = ( isset( $saved['schedule'] ) && is_array( $saved['schedule'] ) ) ? $saved['schedule'] : array();
 		$schedule       = array();
 		foreach ( $defaults['schedule'] as $dow => $default_day ) {
@@ -210,13 +227,13 @@ class IBOH_Settings {
 				? $saved_schedule[ $dow ]
 				: $default_day;
 			$closed = empty( $day['closed'] ) ? 0 : 1;
-			$ranges = $closed ? array() : self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array() );
+			$ranges = self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array() );
 			if ( ! $closed && empty( $ranges ) ) {
 				$closed = 1;
 			}
 			$schedule[ $dow ] = array(
 				'closed' => $closed,
-				'ranges' => $closed ? array() : $ranges,
+				'ranges' => $ranges,
 			);
 		}
 		$out['schedule'] = $schedule;
@@ -236,6 +253,7 @@ class IBOH_Settings {
 			'bank_holiday_mode' => isset( $options['bank_holiday_mode'] ) && in_array( $options['bank_holiday_mode'], array( 'seven_days', 'all', 'none' ), true )
 				? $options['bank_holiday_mode']
 				: $defaults['options']['bank_holiday_mode'],
+			'timezone'          => IBOH_Timezone::sanitize_setting( isset( $options['timezone'] ) ? $options['timezone'] : '' ),
 		);
 
 		$banner = ( isset( $saved['banner'] ) && is_array( $saved['banner'] ) ) ? $saved['banner'] : array();
@@ -301,40 +319,73 @@ class IBOH_Settings {
 		$defaults = self::defaults();
 		$out      = array();
 		$range_truncated   = 0;
+		$range_invalid     = 0;
 		$holiday_truncated = 0;
+		$auto_closed       = array();
+		$duplicate_dates   = array();
+
+		// A large schedule can exceed PHP's max_input_vars, in which case PHP
+		// silently drops the end of the POST. The settings form starts with a
+		// marker and ends with a sentinel; a marker without the sentinel means
+		// the submission was cut short and saving it would delete data. Input
+		// without the marker (an already-sanitized value passed back through
+		// update_option, or a page loaded before an upgrade) is accepted.
+		$from_editor = ! empty( $input[ self::FORM_MARKER ] );
+		if ( $from_editor && empty( $input[ self::FORM_COMPLETE_MARKER ] ) ) {
+			if ( function_exists( 'add_settings_error' ) ) {
+				add_settings_error(
+					IBOH_OPTION,
+					'iboh_form_truncated',
+					__( 'Nothing was saved: the browser sent an incomplete form. This usually means the PHP max_input_vars limit is too low for the number of special dates. Ask your host to raise it, or remove some dates and try again.', 'itboffins-live-opening-hours' ),
+					'error'
+				);
+			}
+			$existing = get_option( IBOH_OPTION, array() );
+			return is_array( $existing ) ? $existing : array();
+		}
+
+		// --- Options --------------------------------------------------------
+		// Resolved first because "today" depends on the submitted timezone.
+		$options                             = isset( $input['options'] ) && is_array( $input['options'] ) ? $input['options'] : array();
+		$out['options']                      = array();
+		$out['options']['weekly_enabled']    = empty( $options['weekly_enabled'] ) ? 0 : 1;
+		$out['options']['show_upcoming']     = empty( $options['show_upcoming'] ) ? 0 : 1;
+		$bank_holiday_modes                  = array( 'seven_days', 'all', 'none' );
+		$out['options']['bank_holiday_mode'] = ( isset( $options['bank_holiday_mode'] ) && in_array( $options['bank_holiday_mode'], $bank_holiday_modes, true ) )
+			? $options['bank_holiday_mode']
+			: $defaults['options']['bank_holiday_mode'];
+		$out['options']['timezone']          = IBOH_Timezone::sanitize_setting( isset( $options['timezone'] ) ? $options['timezone'] : '' );
+		$timezone                            = IBOH_Timezone::from_setting( $out['options']['timezone'] );
+		$day_names                           = IBOH_Config::day_names();
 
 		// --- Schedule (weekdays 0..6) ---------------------------------------
+		// A closed day keeps its hours so they come back when it is reopened;
+		// both evaluators ignore ranges while a day is closed.
 		$out['schedule'] = array();
 		foreach ( array( 0, 1, 2, 3, 4, 5, 6 ) as $dow ) {
 			$day             = isset( $input['schedule'][ $dow ] ) && is_array( $input['schedule'][ $dow ] ) ? $input['schedule'][ $dow ] : array();
 			$closed          = empty( $day['closed'] ) ? 0 : 1;
-			$ranges          = $closed ? array() : self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array(), $range_truncated );
+			$ranges          = self::sanitize_ranges( isset( $day['ranges'] ) ? $day['ranges'] : array(), $range_truncated, $range_invalid );
 			if ( ! $closed && empty( $ranges ) ) {
-				$closed = 1;
+				$closed        = 1;
+				$auto_closed[] = isset( $day_names[ $dow ] ) ? $day_names[ $dow ] : (string) $dow;
 			}
 			$out['schedule'][ $dow ] = array(
 				'closed' => $closed,
-				'ranges' => $closed ? array() : $ranges,
+				'ranges' => $ranges,
 			);
 		}
 
 		// --- Holidays / special dates ---------------------------------------
+		// The editor shows yesterday's row whenever it can still affect the
+		// hours after midnight, so whatever the form sends is authoritative:
+		// a row the owner removed stays removed.
 		$out['holidays'] = array();
 		$holidays        = isset( $input['holidays'] ) && is_array( $input['holidays'] ) ? $input['holidays'] : array();
-		$today           = self::today_date();
+		$today           = self::today_date( $timezone );
 		$yesterday       = self::shift_date( $today, -1 );
 		$discarded       = 0;
 		$holiday_count   = 0;
-
-		// Yesterday is absent from a newly rendered admin form, but may still be
-		// submitted by a page kept open across midnight. Preserve an existing
-		// override as a fallback, then let a submitted yesterday row replace it.
-		// A closed override is significant too: dropping it could resurrect the
-		// regular weekday's overnight tail after midnight.
-		$existing = get_option( IBOH_OPTION, array() );
-		if ( is_array( $existing ) && isset( $existing['holidays'][ $yesterday ] ) && is_array( $existing['holidays'][ $yesterday ] ) ) {
-			$out['holidays'][ $yesterday ] = self::normalize_holiday( $existing['holidays'][ $yesterday ] );
-		}
 
 		foreach ( $holidays as $key => $row ) {
 			if ( ! is_array( $row ) ) {
@@ -362,18 +413,21 @@ class IBOH_Settings {
 			}
 
 			$closed = empty( $row['closed'] ) ? 0 : 1;
-			$ranges = $closed ? array() : self::sanitize_ranges( isset( $row['ranges'] ) ? $row['ranges'] : array(), $range_truncated );
+			$ranges = self::sanitize_ranges( isset( $row['ranges'] ) ? $row['ranges'] : array(), $range_truncated, $range_invalid );
 			if ( ! $closed && empty( $ranges ) ) {
-				$closed = 1;
+				$closed        = 1;
+				$auto_closed[] = $date;
 			}
 
 			$source = ( isset( $row['source'] ) && 'bank_holiday' === $row['source'] ) ? 'bank_holiday' : '';
-			if (
-				isset( $out['holidays'][ $date ] )
-				&& 'bank_holiday' === ( isset( $out['holidays'][ $date ]['source'] ) ? $out['holidays'][ $date ]['source'] : '' )
-				&& 'bank_holiday' !== $source
-			) {
-				continue;
+			if ( isset( $out['holidays'][ $date ] ) ) {
+				$duplicate_dates[ $date ] = true;
+				if (
+					'bank_holiday' === ( isset( $out['holidays'][ $date ]['source'] ) ? $out['holidays'][ $date ]['source'] : '' )
+					&& 'bank_holiday' !== $source
+				) {
+					continue;
+				}
 			}
 			$is_current = $date >= $today;
 			if ( $is_current && ! isset( $out['holidays'][ $date ] ) && $holiday_count >= self::MAX_HOLIDAYS ) {
@@ -386,14 +440,86 @@ class IBOH_Settings {
 
 			$out['holidays'][ $date ] = array(
 				'closed' => $closed,
-				'ranges' => $closed ? array() : $ranges,
+				'ranges' => $ranges,
 				'label'  => isset( $row['label'] ) && is_scalar( $row['label'] ) ? sanitize_text_field( (string) $row['label'] ) : '',
 			);
 			if ( 'bank_holiday' === $source ) {
 				$out['holidays'][ $date ]['source'] = 'bank_holiday';
 			}
 		}
+
+		// The editor lists dates from yesterday onward in the timezone that was
+		// saved when the page loaded. If this save moves to a timezone whose
+		// calendar is behind, dates that are still today or yesterday there were
+		// never on the page: keep their stored rows rather than deleting them.
+		if ( $from_editor ) {
+			$existing = get_option( IBOH_OPTION, array() );
+			$stored   = ( is_array( $existing ) && isset( $existing['holidays'] ) && is_array( $existing['holidays'] ) ) ? $existing['holidays'] : array();
+			$shown_from = self::shift_date( self::today_date( IBOH_Timezone::timezone() ), -1 );
+			foreach ( $stored as $date => $row ) {
+				if ( ! is_string( $date ) || null === self::valid_date( $date ) || ! is_array( $row ) ) {
+					continue;
+				}
+				if ( $date >= $yesterday && $date < $shown_from && ! isset( $out['holidays'][ $date ] ) ) {
+					$out['holidays'][ $date ] = self::normalize_holiday( $row );
+				}
+			}
+		}
 		ksort( $out['holidays'] );
+
+		if ( ! empty( $auto_closed ) && function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				IBOH_OPTION,
+				'iboh_auto_closed',
+				sprintf(
+					/* translators: %s: list of weekday names and/or dates. */
+					_n(
+						'%s was marked open but had no complete opening hours, so it was saved as closed.',
+						'%s were marked open but had no complete opening hours, so they were saved as closed.',
+						count( $auto_closed ),
+						'itboffins-live-opening-hours'
+					),
+					implode( ', ', $auto_closed )
+				),
+				'warning'
+			);
+		}
+
+		if ( $range_invalid > 0 && function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				IBOH_OPTION,
+				'iboh_ranges_invalid',
+				sprintf(
+					/* translators: %d: number of time ranges that were dropped. */
+					_n(
+						'%d time range was not saved because its opening or closing time was missing or invalid.',
+						'%d time ranges were not saved because their opening or closing times were missing or invalid.',
+						$range_invalid,
+						'itboffins-live-opening-hours'
+					),
+					$range_invalid
+				),
+				'warning'
+			);
+		}
+
+		if ( ! empty( $duplicate_dates ) && function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				IBOH_OPTION,
+				'iboh_duplicate_dates',
+				sprintf(
+					/* translators: %s: list of dates in YYYY-MM-DD format. */
+					_n(
+						'%s was listed more than once. Only one entry per date is kept: a bank holiday wins, otherwise the last entry.',
+						'%s were listed more than once. Only one entry per date is kept: a bank holiday wins, otherwise the last entry.',
+						count( $duplicate_dates ),
+						'itboffins-live-opening-hours'
+					),
+					implode( ', ', array_keys( $duplicate_dates ) )
+				),
+				'warning'
+			);
+		}
 
 		if ( $discarded > 0 && function_exists( 'add_settings_error' ) ) {
 			add_settings_error(
@@ -450,16 +576,6 @@ class IBOH_Settings {
 				'error'
 			);
 		}
-
-		// --- Options --------------------------------------------------------
-		$options                          = isset( $input['options'] ) && is_array( $input['options'] ) ? $input['options'] : array();
-		$out['options']                   = array();
-		$out['options']['weekly_enabled'] = empty( $options['weekly_enabled'] ) ? 0 : 1;
-		$out['options']['show_upcoming']  = empty( $options['show_upcoming'] ) ? 0 : 1;
-		$bank_holiday_modes              = array( 'seven_days', 'all', 'none' );
-		$out['options']['bank_holiday_mode'] = ( isset( $options['bank_holiday_mode'] ) && in_array( $options['bank_holiday_mode'], $bank_holiday_modes, true ) )
-			? $options['bank_holiday_mode']
-			: $defaults['options']['bank_holiday_mode'];
 
 		// --- Banner ---------------------------------------------------------
 		$banner                  = isset( $input['banner'] ) && is_array( $input['banner'] ) ? $input['banner'] : array();
@@ -531,12 +647,14 @@ class IBOH_Settings {
 	}
 
 	/**
-	 * Today's date in the site's WordPress timezone.
+	 * Today's date in the schedule timezone.
 	 *
+	 * @param DateTimeZone|null $timezone Zone to use (default: the effective
+	 *                                    schedule timezone).
 	 * @return string YYYY-MM-DD.
 	 */
-	private static function today_date() {
-		return wp_date( 'Y-m-d' );
+	private static function today_date( $timezone = null ) {
+		return wp_date( 'Y-m-d', null, $timezone instanceof DateTimeZone ? $timezone : IBOH_Timezone::timezone() );
 	}
 
 	/**
@@ -567,9 +685,12 @@ class IBOH_Settings {
 	 * @param mixed    $ranges    Raw ranges array.
 	 * @param int|null $truncated Optional running count of valid ranges omitted
 	 *                            because a day/date exceeded MAX_RANGES.
+	 * @param int|null $invalid   Optional running count of ranges dropped
+	 *                            because a time was missing or malformed (a
+	 *                            fully blank row is not counted).
 	 * @return array
 	 */
-	private static function sanitize_ranges( $ranges, &$truncated = null ) {
+	private static function sanitize_ranges( $ranges, &$truncated = null, &$invalid = null ) {
 		if ( ! is_array( $ranges ) ) {
 			return array();
 		}
@@ -578,17 +699,22 @@ class IBOH_Settings {
 			if ( ! is_array( $range ) ) {
 				continue;
 			}
-			$open  = self::valid_time( isset( $range['open'] ) ? $range['open'] : '' );
-			$close = self::valid_time( isset( $range['close'] ) ? $range['close'] : '' );
-			if ( null === $open || null === $close ) {
-				continue;
-			}
-			if ( '24:00' === $open ) {
+			$raw_open  = isset( $range['open'] ) && is_scalar( $range['open'] ) ? trim( (string) $range['open'] ) : '';
+			$raw_close = isset( $range['close'] ) && is_scalar( $range['close'] ) ? trim( (string) $range['close'] ) : '';
+			$open      = self::valid_time( $raw_open );
+			$close     = self::valid_time( $raw_close );
+			if ( null === $open || null === $close || '24:00' === $open ) {
+				if ( null !== $invalid && ( '' !== $raw_open || '' !== $raw_close ) ) {
+					$invalid++;
+				}
 				continue;
 			}
 			// Reject zero-length same-day ranges (open === close), except the
 			// explicit 00:00 -> 24:00 "open 24 hours" case.
 			if ( $open === $close && ! ( '00:00' === $open && '24:00' === $close ) ) {
+				if ( null !== $invalid ) {
+					$invalid++;
+				}
 				continue;
 			}
 			if ( count( $out ) >= self::MAX_RANGES ) {
@@ -613,14 +739,14 @@ class IBOH_Settings {
 	 */
 	private static function normalize_holiday( $holiday ) {
 		$closed = empty( $holiday['closed'] ) ? 0 : 1;
-		$ranges = $closed ? array() : self::sanitize_ranges( isset( $holiday['ranges'] ) ? $holiday['ranges'] : array() );
+		$ranges = self::sanitize_ranges( isset( $holiday['ranges'] ) ? $holiday['ranges'] : array() );
 		if ( ! $closed && empty( $ranges ) ) {
 			$closed = 1;
 		}
 
 		$out = array(
 			'closed' => $closed,
-			'ranges' => $closed ? array() : $ranges,
+			'ranges' => $ranges,
 			'label'  => isset( $holiday['label'] ) && is_scalar( $holiday['label'] ) ? sanitize_text_field( (string) $holiday['label'] ) : '',
 		);
 		if ( isset( $holiday['source'] ) && 'bank_holiday' === $holiday['source'] ) {

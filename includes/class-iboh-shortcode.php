@@ -155,7 +155,7 @@ class IBOH_Shortcode {
 			$source     = ( isset( $h['source'] ) && 'bank_holiday' === $h['source'] ) ? 'bank_holiday' : '';
 			$hide_row   = ( 'bank_holiday' === $source && ( 'none' === $bank_mode || ( 'all' !== $bank_mode && $date > $bank_cutoff ) ) );
 			$date_text  = self::fmt_date( $date );
-			$date_label = ( '' !== $label ) ? $date_text . ' (' . $label . ')' : $date_text;
+			$date_label = ( '' !== $label ) ? sprintf( IBOH_Config::format( 'dateNote' ), $date_text, $label ) : $date_text;
 			$hours      = $closed
 				? __( 'Closed', 'itboffins-live-opening-hours' )
 				: self::format_day_hours( array( 'closed' => 0, 'ranges' => isset( $h['ranges'] ) ? $h['ranges'] : array() ), $labels );
@@ -203,9 +203,9 @@ class IBOH_Shortcode {
 
 		$parts = array();
 		foreach ( $ranges as $r ) {
-			$parts[] = self::fmt( $r['open'] ) . ' – ' . self::fmt( $r['close'] );
+			$parts[] = sprintf( IBOH_Config::format( 'range' ), self::fmt( $r['open'] ), self::fmt( $r['close'] ) );
 		}
-		return implode( ', ', $parts );
+		return implode( IBOH_Config::format( 'ranges' ), $parts );
 	}
 
 	/**
